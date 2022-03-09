@@ -1,8 +1,4 @@
-use std::{thread, time};
-use std::ops::Add;
-use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum TimeEventType {
@@ -43,9 +39,6 @@ impl TimeStackState {
     }
     pub fn last_turn_timestamp(&self) -> Instant {
         self.last_turn_timestamp
-    }
-    pub fn last_processed_event_index(&self) -> usize {
-        self.last_processed_event_index
     }
     pub fn paused(&self) -> bool {
         self.paused
