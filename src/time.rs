@@ -19,11 +19,13 @@ pub enum TimeEventType {
     Pause,
     Start,
     SetSpeed(u64),
+    GetTimeStackState,
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum TimeEventReturnType {
-    StackState(TimeStackState)
+    StackState(TimeStackState),
+    Received,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -38,12 +40,11 @@ pub struct TimeStackState {
 
 fn time_passes(channel_getter: Receiver<Channel>) {
     thread::spawn(move || {
-        println!("Initiated gammeloop");
         let mut event_stack: Vec<TimeEventType> = Vec::new();
         let mut channels: Vec<Channel> = Vec::new();
         let mut state = TimeStackState {
             turn: 0,
-            turn_min_duration_in_milli_secs: 1000,
+            turn_min_duration_in_milli_secs: 0,
             last_turn_timestamp: Instant::now(),
             last_processed_event_index: 0,
             paused: true,
@@ -55,10 +56,8 @@ fn time_passes(channel_getter: Receiver<Channel>) {
                 channels.push(channel);
             }
 
-            println!("gameloop: next itteration. NUmber of channelse: {}", channels.len());
             for channel in &channels {
                 for event in channel.getter.try_recv() {
-                    println!("Got event, handling: {:?}", event);
                     handle_event(&mut state, &event, channel);
                     event_stack.push(event);
                 }
@@ -71,7 +70,6 @@ fn time_passes(channel_getter: Receiver<Channel>) {
                 if now > min_instant_where_we_can_switch_turn {
                     state.turn += 1;
                     // Trigger next turn calculation
-                    println!("Started turn {}", state.turn);
                     state.ready_for_next_turn = false;
                 }
             }
@@ -85,17 +83,21 @@ fn handle_event(state: &mut TimeStackState, event: &TimeEventType, channel: &Cha
     match event {
         TimeEventType::Pause => {
             state.paused = true;
-            channel.returner.send(TimeEventReturnType::StackState(state.clone()));
+            channel.returner.send(TimeEventReturnType::Received);
         }
         TimeEventType::Start => {
             state.paused = false;
+            channel.returner.send(TimeEventReturnType::Received);
         }
         TimeEventType::SetSpeed(turn_min_duration_in_milli_secs) => {
             state.turn_min_duration_in_milli_secs = *turn_min_duration_in_milli_secs;
+            channel.returner.send(TimeEventReturnType::Received);
         }
         TimeEventType::ReadyForNextTurn => {
-            println!("ReadyForNextTurn triggered.");
             state.ready_for_next_turn = true;
+            channel.returner.send(TimeEventReturnType::Received);
+        }
+        TimeEventType::GetTimeStackState => {
             channel.returner.send(TimeEventReturnType::StackState(state.clone()));
         }
     }
@@ -115,10 +117,12 @@ impl MyLittleUniverse {
 mod tests_int {
     use std::sync::mpsc;
     use std::sync::mpsc::{Receiver, Sender, SendError};
+    use std::thread;
     use std::time::{Duration, Instant};
 
+    use crate::time;
     use crate::time::{Channel, MyLittleUniverse, TimeEventReturnType, TimeEventType, TimeStackState};
-    use crate::time::TimeEventReturnType::StackState;
+    use crate::time::TimeEventReturnType::{Received, StackState};
 
     #[test]
     fn it_works() {
@@ -133,11 +137,81 @@ mod tests_int {
 
         match main_to_universe_sender.send(TimeEventType::ReadyForNextTurn) {
             Err(E) => println!("Sender errored: {}", E),
-            _  => println!("Sender send without error.")
+            _ => println!("Sender send without error.")
         }
 
         match universe_to_main_reciver.recv().unwrap() {
-            StackState(state) => assert_eq!(true, state.ready_for_next_turn)
+            Received => {}
+            _ => assert!(false)
+        }
+    }
+
+    #[test]
+    fn next_turn() {
+        let (main_to_universe_sender, main_to_universe_reciver): (Sender<TimeEventType>, Receiver<TimeEventType>) = mpsc::channel();
+        let (universe_to_main_sender, universe_to_main_reciver): (Sender<TimeEventReturnType>, Receiver<TimeEventReturnType>) = mpsc::channel();
+
+        let time_stack = MyLittleUniverse::new();
+        time_stack.channel_sender.send(Channel {
+            getter: main_to_universe_reciver,
+            returner: universe_to_main_sender,
+        });
+
+        match main_to_universe_sender.send(TimeEventType::ReadyForNextTurn) {
+            Err(E) => println!("Sender errored: {}", E),
+            _ => println!("Sender send without error.")
+        }
+
+        await_recived(&universe_to_main_reciver);
+
+        match main_to_universe_sender.send(TimeEventType::Start) {
+            Err(E) => println!("Sender errored: {}", E),
+            _ => println!("Sender send without error.")
+        }
+
+        await_recived(&universe_to_main_reciver);
+
+        match main_to_universe_sender.send(TimeEventType::GetTimeStackState) {
+            Err(E) => println!("Sender errored: {}", E),
+            _ => println!("Sender send without error.")
+        }
+
+        match universe_to_main_reciver.recv_timeout(Duration::from_secs(1)).unwrap() {
+            StackState(state) => assert_eq!(1, state.turn),
+            _ => assert!(false)
+        }
+
+        match main_to_universe_sender.send(TimeEventType::SetSpeed(1000)) {
+            Err(E) => println!("Sender errored: {}", E),
+            _ => println!("Sender send without error.")
+        }
+
+        await_recived(&universe_to_main_reciver);
+
+        match main_to_universe_sender.send(TimeEventType::ReadyForNextTurn) {
+            Err(E) => println!("Sender errored: {}", E),
+            _ => println!("Sender send without error.")
+        }
+
+        await_recived(&universe_to_main_reciver);
+
+        thread::sleep(time::Duration::from_secs(1));
+
+        match main_to_universe_sender.send(TimeEventType::GetTimeStackState) {
+            Err(E) => println!("Sender errored: {}", E),
+            _ => println!("Sender send without error.")
+        }
+
+        match universe_to_main_reciver.recv_timeout(Duration::from_secs(1)).unwrap() {
+            StackState(state) => assert_eq!(2, state.turn),
+            _ => assert!(false)
+        }
+    }
+
+    fn await_recived(universe_to_main_reciver: &Receiver<TimeEventReturnType>) {
+        match universe_to_main_reciver.recv_timeout(Duration::from_secs(1)).unwrap() {
+            Received => { println!("Recived without error.") }
+            _ => assert!(false)
         }
     }
 }
