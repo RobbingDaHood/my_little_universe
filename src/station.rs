@@ -22,7 +22,7 @@ pub struct StationState {
     name: String,
     station_type: String,
     production: Production,
-    stack: Vec<StationEvenType>,
+    event_stack: Vec<StationEvenType>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -48,7 +48,7 @@ pub enum StationEvenReturnType {
 }
 
 pub fn push_event(station_state: &mut StationState, event: &StationEvenType) -> StationEvenReturnType {
-    station_state.stack.push(event.clone());
+    station_state.event_stack.push(event.clone());
     handle_event(station_state, event)
 }
 
@@ -294,7 +294,7 @@ mod tests_int {
                 production_time: 1,
                 production_progress: 0,
             },
-            stack: Vec::new(),
+            event_stack: Vec::new(),
         }
     }
 }

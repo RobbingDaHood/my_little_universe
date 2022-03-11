@@ -17,6 +17,7 @@ pub struct TimeStackState {
     last_processed_event_index: usize,
     paused: bool,
     ready_for_next_turn: bool,
+    event_stack: Vec<TimeEventType>,
 }
 
 impl TimeStackState {
@@ -28,6 +29,7 @@ impl TimeStackState {
             last_processed_event_index: 0,
             paused: true,
             ready_for_next_turn: false,
+            event_stack: Vec::new(),
         }
     }
 
@@ -54,7 +56,12 @@ pub enum TimeEventReturnType {
     Received,
 }
 
-pub fn handle_event(state: &mut TimeStackState, event: &TimeEventType) -> TimeEventReturnType {
+pub fn push_event(time_state: &mut TimeStackState, event: &TimeEventType) -> TimeEventReturnType {
+    time_state.event_stack.push(event.clone());
+    handle_event(time_state, event)
+}
+
+fn handle_event(state: &mut TimeStackState, event: &TimeEventType) -> TimeEventReturnType {
     match event {
         TimeEventType::Pause => {
             state.paused = true;
@@ -92,7 +99,7 @@ mod tests_int {
     fn handl_events() {
         let mut time_state = TimeStackState::new();
 
-        match handle_event(&mut time_state, &TimeEventType::GetTimeStackState) {
+        match push_event(&mut time_state, &TimeEventType::GetTimeStackState) {
             TimeEventReturnType::StackState(state) => {
                 assert_eq!(0, state.turn);
                 assert_eq!(false, state.ready_for_next_turn);
@@ -100,12 +107,12 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match handle_event(&mut time_state, &TimeEventType::ReadyForNextTurn) {
+        match push_event(&mut time_state, &TimeEventType::ReadyForNextTurn) {
             TimeEventReturnType::Received => {}
             _ => assert!(false)
         }
 
-        match handle_event(&mut time_state, &TimeEventType::GetTimeStackState) {
+        match push_event(&mut time_state, &TimeEventType::GetTimeStackState) {
             TimeEventReturnType::StackState(state) => {
                 assert_eq!(0, state.turn);
                 assert_eq!(true, state.ready_for_next_turn);

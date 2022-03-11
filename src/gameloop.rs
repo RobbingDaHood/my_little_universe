@@ -4,7 +4,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::{Duration, Instant};
 
-use crate::time::{handle_event, next_turn, TimeEventReturnType, TimeEventType, TimeStackState};
+use crate::time::{push_event, next_turn, TimeEventReturnType, TimeEventType, TimeStackState};
 
 pub struct Channel {
     getter: Receiver<TimeEventType>,
@@ -13,7 +13,6 @@ pub struct Channel {
 
 fn game_loop(channel_getter: Receiver<Channel>) {
     thread::spawn(move || {
-        let mut event_stack: Vec<TimeEventType> = Vec::new();
         let mut channels: Vec<Channel> = Vec::new();
         let mut state = TimeStackState::new();
 
@@ -24,11 +23,10 @@ fn game_loop(channel_getter: Receiver<Channel>) {
 
             for channel in &channels {
                 for event in channel.getter.try_recv() {
-                    match channel.returner.send(handle_event(&mut state, &event)) {
+                    match channel.returner.send(push_event(&mut state, &event)) {
                         Err(e) => eprintln!("Failed sending event in gameloop: {}", e),
                         _ => {}
                     }
-                    event_stack.push(event);
                 }
             }
 
