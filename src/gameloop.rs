@@ -3,7 +3,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
 use crate::station::{StationEvenType, StationState};
-use crate::time::{push_event, request_execute_turn, TimeEventReturnType, TimeEventType, TimeStackState};
+use crate::time::{TimeEventReturnType, TimeEventType, TimeStackState};
 
 pub struct MyLittleUniverse {
     time: TimeStackState,
@@ -34,14 +34,14 @@ fn game_loop(channel_getter: Receiver<Channel>) {
 
             for channel in &universe.channels {
                 for event in channel.getter.try_recv() {
-                    match channel.returner.send(push_event(&mut universe.time, &event)) {
+                    match channel.returner.send(universe.time.push_event(&event)) {
                         Err(e) => eprintln!("Failed sending event in gameloop: {}", e),
                         _ => {}
                     }
                 }
             }
 
-            if request_execute_turn(&mut universe.time) {
+            if universe.time.request_execute_turn() {
                 universe.station.push_event(&StationEvenType::ExecuteTurn);
             }
 

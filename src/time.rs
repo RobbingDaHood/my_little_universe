@@ -50,63 +50,63 @@ impl TimeStackState {
     pub fn ready_for_next_turn(&self) -> bool {
         self.ready_for_next_turn
     }
+
+    pub fn push_event(&mut self, event: &TimeEventType) -> TimeEventReturnType {
+        self.event_stack.push(event.clone());
+        self.handle_event(event)
+    }
+
+    fn handle_event(&mut self, event: &TimeEventType) -> TimeEventReturnType {
+        match event {
+            TimeEventType::Pause => {
+                self.paused = true;
+                TimeEventReturnType::Received
+            }
+            TimeEventType::Start => {
+                self.paused = false;
+                TimeEventReturnType::Received
+            }
+            TimeEventType::SetSpeed(turn_min_duration_in_milli_secs) => {
+                self.turn_min_duration_in_milli_secs = *turn_min_duration_in_milli_secs;
+                TimeEventReturnType::Received
+            }
+            TimeEventType::ReadyForNextTurn => {
+                self.ready_for_next_turn = true;
+                TimeEventReturnType::Received
+            }
+            TimeEventType::GetTimeStackState => {
+                TimeEventReturnType::StackState(self.clone())
+            }
+            TimeEventType::StartedNextTurn => {
+                self.next_turn();
+                TimeEventReturnType::Received
+            }
+        }
+    }
+
+    pub fn request_execute_turn(&mut self) -> bool {
+        if self.ready_for_next_turn() && !self.paused() {
+            let now = Instant::now();
+            let min_instant_where_we_can_switch_turn = self.last_turn_timestamp().add(Duration::from_millis(self.turn_min_duration_in_milli_secs()));
+
+            if now > min_instant_where_we_can_switch_turn {
+                self.push_event(&TimeEventType::StartedNextTurn);
+                return true;
+            }
+        }
+        false
+    }
+
+    fn next_turn(&mut self) {
+        self.turn += 1;
+        self.ready_for_next_turn = false;
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum TimeEventReturnType {
     StackState(TimeStackState),
     Received,
-}
-
-pub fn push_event(time_state: &mut TimeStackState, event: &TimeEventType) -> TimeEventReturnType {
-    time_state.event_stack.push(event.clone());
-    handle_event(time_state, event)
-}
-
-fn handle_event(state: &mut TimeStackState, event: &TimeEventType) -> TimeEventReturnType {
-    match event {
-        TimeEventType::Pause => {
-            state.paused = true;
-            TimeEventReturnType::Received
-        }
-        TimeEventType::Start => {
-            state.paused = false;
-            TimeEventReturnType::Received
-        }
-        TimeEventType::SetSpeed(turn_min_duration_in_milli_secs) => {
-            state.turn_min_duration_in_milli_secs = *turn_min_duration_in_milli_secs;
-            TimeEventReturnType::Received
-        }
-        TimeEventType::ReadyForNextTurn => {
-            state.ready_for_next_turn = true;
-            TimeEventReturnType::Received
-        }
-        TimeEventType::GetTimeStackState => {
-            TimeEventReturnType::StackState(state.clone())
-        }
-        TimeEventType::StartedNextTurn => {
-            next_turn(state);
-            TimeEventReturnType::Received
-        }
-    }
-}
-
-pub fn request_execute_turn(state: &mut TimeStackState) -> bool {
-    if state.ready_for_next_turn() && !state.paused() {
-        let now = Instant::now();
-        let min_instant_where_we_can_switch_turn = state.last_turn_timestamp().add(Duration::from_millis(state.turn_min_duration_in_milli_secs()));
-
-        if now > min_instant_where_we_can_switch_turn {
-            push_event(state, &TimeEventType::StartedNextTurn);
-            return true
-        }
-    }
-    false
-}
-
-pub fn next_turn(state: &mut TimeStackState) {
-    state.turn += 1;
-    state.ready_for_next_turn = false;
 }
 
 #[cfg(test)]
@@ -117,7 +117,7 @@ mod tests_int {
     fn handl_events() {
         let mut time_state = TimeStackState::new();
 
-        match push_event(&mut time_state, &TimeEventType::GetTimeStackState) {
+        match time_state.push_event(&TimeEventType::GetTimeStackState) {
             TimeEventReturnType::StackState(state) => {
                 assert_eq!(0, state.turn);
                 assert_eq!(false, state.ready_for_next_turn);
@@ -125,12 +125,12 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match push_event(&mut time_state, &TimeEventType::ReadyForNextTurn) {
+        match time_state.push_event(&TimeEventType::ReadyForNextTurn) {
             TimeEventReturnType::Received => {}
             _ => assert!(false)
         }
 
-        match push_event(&mut time_state, &TimeEventType::GetTimeStackState) {
+        match time_state.push_event(&TimeEventType::GetTimeStackState) {
             TimeEventReturnType::StackState(state) => {
                 assert_eq!(0, state.turn);
                 assert_eq!(true, state.ready_for_next_turn);
@@ -143,7 +143,7 @@ mod tests_int {
     fn change_turn() {
         let mut time_state = TimeStackState::new();
         assert_eq!(0, time_state.turn);
-        next_turn(&mut time_state);
+        time_state.next_turn();
         assert_eq!(1, time_state.turn);
     }
 }
