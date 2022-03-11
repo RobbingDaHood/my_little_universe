@@ -82,3 +82,44 @@ pub fn next_turn(state: &mut TimeStackState) {
     state.turn += 1;
     state.ready_for_next_turn = false;
 }
+
+
+#[cfg(test)]
+mod tests_int {
+    use crate::time::*;
+
+    #[test]
+    fn handl_events() {
+        let mut time_state = TimeStackState::new();
+
+        match handle_event(&mut time_state, &TimeEventType::GetTimeStackState) {
+            TimeEventReturnType::StackState(state) => {
+                assert_eq!(0, state.turn);
+                assert_eq!(false, state.ready_for_next_turn);
+            }
+            _ => assert!(false)
+        }
+
+        match handle_event(&mut time_state, &TimeEventType::ReadyForNextTurn) {
+            TimeEventReturnType::Received => {}
+            _ => assert!(false)
+        }
+
+        match handle_event(&mut time_state, &TimeEventType::GetTimeStackState) {
+            TimeEventReturnType::StackState(state) => {
+                assert_eq!(0, state.turn);
+                assert_eq!(true, state.ready_for_next_turn);
+            }
+            _ => assert!(false)
+        }
+    }
+
+    #[test]
+    fn change_turn() {
+        let mut time_state = TimeStackState::new();
+        assert_eq!(0, time_state.turn);
+        next_turn(&mut time_state);
+        assert_eq!(1, time_state.turn);
+
+    }
+}
