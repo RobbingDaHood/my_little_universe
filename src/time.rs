@@ -91,15 +91,17 @@ fn handle_event(state: &mut TimeStackState, event: &TimeEventType) -> TimeEventR
     }
 }
 
-pub fn request_execute_turn(state: &mut TimeStackState) {
+pub fn request_execute_turn(state: &mut TimeStackState) -> bool {
     if state.ready_for_next_turn() && !state.paused() {
         let now = Instant::now();
         let min_instant_where_we_can_switch_turn = state.last_turn_timestamp().add(Duration::from_millis(state.turn_min_duration_in_milli_secs()));
 
         if now > min_instant_where_we_can_switch_turn {
             push_event(state, &TimeEventType::StartedNextTurn);
+            return true
         }
     }
+    false
 }
 
 pub fn next_turn(state: &mut TimeStackState) {

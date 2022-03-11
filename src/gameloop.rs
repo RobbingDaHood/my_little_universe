@@ -2,11 +2,13 @@ use std::{thread, time};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
+use crate::station::{StationEvenType, StationState};
 use crate::time::{push_event, request_execute_turn, TimeEventReturnType, TimeEventType, TimeStackState};
 
 pub struct MyLittleUniverse {
     time: TimeStackState,
     channels: Vec<Channel>,
+    station: StationState,
 }
 
 impl MyLittleUniverse {
@@ -14,6 +16,7 @@ impl MyLittleUniverse {
         MyLittleUniverse {
             time: TimeStackState::new(),
             channels: Vec::new(),
+            station: StationState::test_station(),
         }
     }
 }
@@ -38,7 +41,9 @@ fn game_loop(channel_getter: Receiver<Channel>) {
                 }
             }
 
-            request_execute_turn(&mut universe.time);
+            if request_execute_turn(&mut universe.time) {
+                universe.station.push_event(&StationEvenType::ExecuteTurn);
+            }
 
             thread::sleep(time::Duration::from_millis(10))
         }
