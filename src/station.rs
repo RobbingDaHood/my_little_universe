@@ -21,7 +21,7 @@ pub struct StationState {
     name: String,
     station_type: String,
     production: Production,
-    event_stack: Vec<StationEvenType>,
+    event_stack: Vec<StationEventType>,
 }
 
 impl StationState {
@@ -50,17 +50,17 @@ impl StationState {
         }
     }
 
-    pub fn push_event(&mut self, event: &StationEvenType) -> StationEvenReturnType {
+    pub fn push_event(&mut self, event: &StationEventType) -> StationEvenReturnType {
         self.event_stack.push(event.clone());
         self.handle_event(event)
     }
 
-    fn handle_event(&mut self, event: &StationEvenType) -> StationEvenReturnType {
+    fn handle_event(&mut self, event: &StationEventType) -> StationEvenReturnType {
         return match event {
-            StationEvenType::GetStationState => {
+            StationEventType::GetStationState => {
                 StationEvenReturnType::StationState(self.clone())
             }
-            StationEvenType::RequestLoad(request) => {
+            StationEventType::RequestLoad(request) => {
                 for input in &mut self.production.input {
                     if input.product == request.product {
                         match input.current_storage.checked_add(request.amount) {
@@ -77,7 +77,7 @@ impl StationState {
                 }
                 StationEvenReturnType::Denied(format!("Loading request denied. This station does not use {:?} and will not receive it.", &request.product))
             }
-            StationEvenType::RequestUnload(request) => {
+            StationEventType::RequestUnload(request) => {
                 for output in &mut self.production.output {
                     if output.product == request.product {
                         return match output.current_storage.checked_sub(request.amount) {
@@ -93,7 +93,7 @@ impl StationState {
                 }
                 StationEvenReturnType::Denied(format!("Unloading request denied. This station does not produce {:?} and will not sell it.", &request.product))
             }
-            StationEvenType::ExecuteTurn => {
+            StationEventType::ExecuteTurn => {
                 self.next_turn();
                 StationEvenReturnType::TurnExecuted
             }
@@ -157,7 +157,7 @@ pub struct LoadingRequest {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub enum StationEvenType {
+pub enum StationEventType {
     RequestLoad(LoadingRequest),
     RequestUnload(LoadingRequest),
     GetStationState,
@@ -175,12 +175,12 @@ pub enum StationEvenReturnType {
 #[cfg(test)]
 mod tests_int {
     use crate::products::Product;
-    use crate::station::{Amount, LoadingRequest, Production, StationEvenReturnType, StationEvenType, StationState};
+    use crate::station::{Amount, LoadingRequest, Production, StationEvenReturnType, StationEventType, StationState};
 
     #[test]
     fn request_unload_wrong_product() {
         let mut station = make_mining_station();
-        match station.push_event(&StationEvenType::RequestUnload(LoadingRequest {
+        match station.push_event(&StationEventType::RequestUnload(LoadingRequest {
             product: Product::Metals,
             amount: 200,
         })) {
@@ -192,7 +192,7 @@ mod tests_int {
     #[test]
     fn request_unload_to_big_amount() {
         let mut station = make_mining_station();
-        match station.push_event(&StationEvenType::RequestUnload(LoadingRequest {
+        match station.push_event(&StationEventType::RequestUnload(LoadingRequest {
             product: Product::Ores,
             amount: 200,
         })) {
@@ -204,7 +204,7 @@ mod tests_int {
     #[test]
     fn request_load_wrong_product() {
         let mut station = make_mining_station();
-        match station.push_event(&StationEvenType::RequestLoad(LoadingRequest {
+        match station.push_event(&StationEventType::RequestLoad(LoadingRequest {
             product: Product::Ores,
             amount: 200,
         })) {
@@ -216,7 +216,7 @@ mod tests_int {
     #[test]
     fn request_load_wrong_amount() {
         let mut station = make_mining_station();
-        match station.push_event(&StationEvenType::RequestLoad(LoadingRequest {
+        match station.push_event(&StationEventType::RequestLoad(LoadingRequest {
             product: Product::PowerCells,
             amount: 9999999,
         })) {
@@ -228,7 +228,7 @@ mod tests_int {
     #[test]
     fn produce() {
         let mut station = make_mining_station();
-        match station.push_event(&StationEvenType::RequestLoad(LoadingRequest {
+        match station.push_event(&StationEventType::RequestLoad(LoadingRequest {
             product: Product::PowerCells,
             amount: 100,
         })) {
@@ -236,12 +236,12 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEvenType::ExecuteTurn) {
+        match station.push_event(&StationEventType::ExecuteTurn) {
             StationEvenReturnType::TurnExecuted => {}
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEvenType::GetStationState) {
+        match station.push_event(&StationEventType::GetStationState) {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(0, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(99, state.production.input.get(0).unwrap().current_storage);
@@ -250,12 +250,12 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEvenType::ExecuteTurn) {
+        match station.push_event(&StationEventType::ExecuteTurn) {
             StationEvenReturnType::TurnExecuted => {}
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEvenType::GetStationState) {
+        match station.push_event(&StationEventType::GetStationState) {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(2, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(99, state.production.input.get(0).unwrap().current_storage);
@@ -264,12 +264,12 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEvenType::ExecuteTurn) {
+        match station.push_event(&StationEventType::ExecuteTurn) {
             StationEvenReturnType::TurnExecuted => {}
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEvenType::GetStationState) {
+        match station.push_event(&StationEventType::GetStationState) {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(2, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(98, state.production.input.get(0).unwrap().current_storage);
@@ -278,7 +278,7 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEvenType::RequestUnload(LoadingRequest {
+        match station.push_event(&StationEventType::RequestUnload(LoadingRequest {
             product: Product::Ores,
             amount: 2,
         })) {
@@ -286,7 +286,7 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEvenType::GetStationState) {
+        match station.push_event(&StationEventType::GetStationState) {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(0, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(98, state.production.input.get(0).unwrap().current_storage);

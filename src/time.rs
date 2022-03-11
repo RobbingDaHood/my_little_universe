@@ -6,6 +6,7 @@ pub enum TimeEventType {
     ReadyForNextTurn,
     Pause,
     Start,
+    StartUntilTurn(u128),
     SetSpeed(u64),
     GetTimeStackState,
     StartedNextTurn,
@@ -17,6 +18,7 @@ pub struct TimeStackState {
     turn_min_duration_in_milli_secs: u64,
     last_turn_timestamp: Instant,
     last_processed_event_index: usize,
+    pause_at_turn: Option<u128>,
     paused: bool,
     ready_for_next_turn: bool,
     event_stack: Vec<TimeEventType>,
@@ -30,8 +32,9 @@ impl TimeStackState {
             last_turn_timestamp: Instant::now(),
             last_processed_event_index: 0,
             paused: true,
-            ready_for_next_turn: false,
+            ready_for_next_turn: true,
             event_stack: Vec::new(),
+            pause_at_turn: Option::None,
         }
     }
 
@@ -81,6 +84,11 @@ impl TimeStackState {
                 self.next_turn();
                 TimeEventReturnType::Received
             }
+            TimeEventType::StartUntilTurn(turn) => {
+                self.pause_at_turn = Option::Some(*turn);
+                self.paused = false;
+                TimeEventReturnType::Received
+            }
         }
     }
 
@@ -100,6 +108,14 @@ impl TimeStackState {
     fn next_turn(&mut self) {
         self.turn += 1;
         self.ready_for_next_turn = false;
+        self.last_turn_timestamp = Instant::now();
+
+        if let Some(pause_at_turn) = self.pause_at_turn {
+            if self.turn >= pause_at_turn {
+                self.paused = true;
+                self.pause_at_turn = Option::None;
+            }
+        }
     }
 }
 

@@ -2,7 +2,7 @@ use std::{thread, time};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
-use crate::station::{StationEvenType, StationState};
+use crate::station::{StationEventType, StationState};
 use crate::time::{TimeEventReturnType, TimeEventType, TimeStackState};
 
 pub struct MyLittleUniverse {
@@ -42,7 +42,8 @@ fn game_loop(channel_getter: Receiver<Channel>) {
             }
 
             if universe.time.request_execute_turn() {
-                universe.station.push_event(&StationEvenType::ExecuteTurn);
+                universe.station.push_event(&StationEventType::ExecuteTurn);
+                universe.time.push_event(&TimeEventType::ReadyForNextTurn);
             }
 
             thread::sleep(time::Duration::from_millis(10))
@@ -118,20 +119,46 @@ mod tests_int {
         }
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 0);
-        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::ReadyForNextTurn);
-        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::Start);
+        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::StartUntilTurn(1));
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 1);
         send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::SetSpeed(1000));
-        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::ReadyForNextTurn);
+        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::StartUntilTurn(2));
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 1);
         thread::sleep(Duration::from_secs(1));
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 2);
         send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::SetSpeed(0));
-        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::Pause);
-        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::ReadyForNextTurn);
-        check_turn(&main_to_universe_sender, &universe_to_main_receiver, 2);
-        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::Start);
+        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::StartUntilTurn(3));
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 3);
+    }
+
+    #[test]
+    fn next_turn_without_limit() {
+        let (main_to_universe_sender, main_to_universe_receiver): (Sender<TimeEventType>, Receiver<TimeEventType>) = mpsc::channel();
+        let (universe_to_main_sender, universe_to_main_receiver): (Sender<TimeEventReturnType>, Receiver<TimeEventReturnType>) = mpsc::channel();
+
+        let time_stack = Communicator::new();
+        let channel = Channel {
+            getter: main_to_universe_receiver,
+            returner: universe_to_main_sender,
+        };
+        match time_stack.channel_sender.send(channel) {
+            Err(e) => println!("Sender errored: {}", e),
+            _ => println!("Sender send without error.")
+        }
+
+        check_turn(&main_to_universe_sender, &universe_to_main_receiver, 0);
+        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::Start);
+        thread::sleep(Duration::from_secs(1));
+        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, TimeEventType::Pause);
+        match main_to_universe_sender.send(TimeEventType::GetTimeStackState) {
+            Err(e) => println!("Sender errored: {}", e),
+            _ => println!("Sender send without error.")
+        }
+
+        match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
+            StackState(state) => assert!(10 < state.turn()),
+            _ => assert!(false)
+        }
     }
 
     fn send_and_wait(main_to_universe_sender: &Sender<TimeEventType>, universe_to_main_receiver: &Receiver<TimeEventReturnType>, event_type: TimeEventType) {
