@@ -2,47 +2,62 @@ use std::{thread, time};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
-use crate::time::{push_event, TimeEventReturnType, TimeEventType, TimeStackState, request_execute_turn};
+use crate::time::{push_event, request_execute_turn, TimeEventReturnType, TimeEventType, TimeStackState};
 
-pub struct Channel {
-    getter: Receiver<TimeEventType>,
-    returner: Sender<TimeEventReturnType>,
+pub struct MyLittleUniverse {
+    time: TimeStackState,
+    channels: Vec<Channel>,
 }
 
+impl MyLittleUniverse {
+    pub fn new() -> Self {
+        MyLittleUniverse {
+            time: TimeStackState::new(),
+            channels: Vec::new(),
+        }
+    }
+}
+
+// channel_getter is one channel to receive new channels.
+// Then the loop will listen for events from that channel to execute.
 fn game_loop(channel_getter: Receiver<Channel>) {
     thread::spawn(move || {
-        let mut channels: Vec<Channel> = Vec::new();
-        let mut state = TimeStackState::new();
+        let mut universe = MyLittleUniverse::new();
 
         loop {
             for channel in channel_getter.try_recv() {
-                channels.push(channel);
+                universe.channels.push(channel);
             }
 
-            for channel in &channels {
+            for channel in &universe.channels {
                 for event in channel.getter.try_recv() {
-                    match channel.returner.send(push_event(&mut state, &event)) {
+                    match channel.returner.send(push_event(&mut universe.time, &event)) {
                         Err(e) => eprintln!("Failed sending event in gameloop: {}", e),
                         _ => {}
                     }
                 }
             }
 
-            request_execute_turn(&mut state);
+            request_execute_turn(&mut universe.time);
 
             thread::sleep(time::Duration::from_millis(10))
         }
     });
 }
 
-pub struct MyLittleUniverse {
+pub struct Communicator {
     channel_sender: Sender<Channel>,
 }
 
-impl MyLittleUniverse {
+pub struct Channel {
+    getter: Receiver<TimeEventType>,
+    returner: Sender<TimeEventReturnType>,
+}
+
+impl Communicator {
     pub fn new() -> Self {
         let (channel_sender, channel_getter): (Sender<Channel>, Receiver<Channel>) = mpsc::channel();
-        let stack = MyLittleUniverse { channel_sender };
+        let stack = Communicator { channel_sender };
         game_loop(channel_getter);
         stack
     }
@@ -55,7 +70,7 @@ mod tests_int {
     use std::thread;
     use std::time::Duration;
 
-    use crate::gameloop::{Channel, MyLittleUniverse};
+    use crate::gameloop::{Channel, Communicator};
     use crate::time::{TimeEventReturnType, TimeEventType};
     use crate::time::TimeEventReturnType::{Received, StackState};
 
@@ -64,7 +79,7 @@ mod tests_int {
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<TimeEventType>, Receiver<TimeEventType>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<TimeEventReturnType>, Receiver<TimeEventReturnType>) = mpsc::channel();
 
-        let time_stack = MyLittleUniverse::new();
+        let time_stack = Communicator::new();
         let channel = Channel {
             getter: main_to_universe_receiver,
             returner: universe_to_main_sender,
@@ -87,7 +102,7 @@ mod tests_int {
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<TimeEventType>, Receiver<TimeEventType>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<TimeEventReturnType>, Receiver<TimeEventReturnType>) = mpsc::channel();
 
-        let time_stack = MyLittleUniverse::new();
+        let time_stack = Communicator::new();
         let channel = Channel {
             getter: main_to_universe_receiver,
             returner: universe_to_main_sender,

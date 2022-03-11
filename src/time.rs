@@ -107,7 +107,6 @@ pub fn next_turn(state: &mut TimeStackState) {
     state.ready_for_next_turn = false;
 }
 
-
 #[cfg(test)]
 mod tests_int {
     use crate::time::*;
