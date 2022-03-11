@@ -1,4 +1,5 @@
-use std::time::Instant;
+use std::ops::Add;
+use std::time::{Duration, Instant};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum TimeEventType {
@@ -7,6 +8,7 @@ pub enum TimeEventType {
     Start,
     SetSpeed(u64),
     GetTimeStackState,
+    StartedNextTurn,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -82,6 +84,21 @@ fn handle_event(state: &mut TimeStackState, event: &TimeEventType) -> TimeEventR
         TimeEventType::GetTimeStackState => {
             TimeEventReturnType::StackState(state.clone())
         }
+        TimeEventType::StartedNextTurn => {
+            next_turn(state);
+            TimeEventReturnType::Received
+        }
+    }
+}
+
+pub fn request_execute_turn(state: &mut TimeStackState) {
+    if state.ready_for_next_turn() && !state.paused() {
+        let now = Instant::now();
+        let min_instant_where_we_can_switch_turn = state.last_turn_timestamp().add(Duration::from_millis(state.turn_min_duration_in_milli_secs()));
+
+        if now > min_instant_where_we_can_switch_turn {
+            push_event(state, &TimeEventType::StartedNextTurn);
+        }
     }
 }
 
@@ -127,6 +144,5 @@ mod tests_int {
         assert_eq!(0, time_state.turn);
         next_turn(&mut time_state);
         assert_eq!(1, time_state.turn);
-
     }
 }

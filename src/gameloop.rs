@@ -1,10 +1,8 @@
 use std::{thread, time};
-use std::ops::Add;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
-use std::time::{Duration, Instant};
 
-use crate::time::{push_event, next_turn, TimeEventReturnType, TimeEventType, TimeStackState};
+use crate::time::{push_event, TimeEventReturnType, TimeEventType, TimeStackState, request_execute_turn};
 
 pub struct Channel {
     getter: Receiver<TimeEventType>,
@@ -30,15 +28,7 @@ fn game_loop(channel_getter: Receiver<Channel>) {
                 }
             }
 
-            if state.ready_for_next_turn() && !state.paused() {
-                let now = Instant::now();
-                let min_instant_where_we_can_switch_turn = state.last_turn_timestamp().add(Duration::from_millis(state.turn_min_duration_in_milli_secs()));
-
-                if now > min_instant_where_we_can_switch_turn {
-                    // Trigger next turn calculation
-                    next_turn(&mut state);
-                }
-            }
+            request_execute_turn(&mut state);
 
             thread::sleep(time::Duration::from_millis(10))
         }
