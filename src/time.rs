@@ -3,13 +3,23 @@ use std::time::{Duration, Instant};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum TimeEventType {
+    Internal(InternalTimeEventType),
+    External(ExternalTimeEventType)
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum InternalTimeEventType {
     ReadyForNextTurn,
+    StartedNextTurn,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum ExternalTimeEventType {
     Pause,
     Start,
     StartUntilTurn(u128),
     SetSpeed(u64),
     GetTimeStackState,
-    StartedNextTurn,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -61,33 +71,42 @@ impl TimeStackState {
 
     fn handle_event(&mut self, event: &TimeEventType) -> TimeEventReturnType {
         match event {
-            TimeEventType::Pause => {
-                self.paused = true;
-                TimeEventReturnType::Received
+            TimeEventType::Internal(internal_event) => {
+                match internal_event {
+                    InternalTimeEventType::ReadyForNextTurn => {
+                        self.ready_for_next_turn = true;
+                        TimeEventReturnType::Received
+                    }
+                    InternalTimeEventType::StartedNextTurn => {
+                        self.next_turn();
+                        TimeEventReturnType::Received
+                    }
+                }
             }
-            TimeEventType::Start => {
-                self.paused = false;
-                TimeEventReturnType::Received
-            }
-            TimeEventType::SetSpeed(turn_min_duration_in_milli_secs) => {
-                self.turn_min_duration_in_milli_secs = *turn_min_duration_in_milli_secs;
-                TimeEventReturnType::Received
-            }
-            TimeEventType::ReadyForNextTurn => {
-                self.ready_for_next_turn = true;
-                TimeEventReturnType::Received
-            }
-            TimeEventType::GetTimeStackState => {
-                TimeEventReturnType::StackState(self.clone())
-            }
-            TimeEventType::StartedNextTurn => {
-                self.next_turn();
-                TimeEventReturnType::Received
-            }
-            TimeEventType::StartUntilTurn(turn) => {
-                self.pause_at_turn = Option::Some(*turn);
-                self.paused = false;
-                TimeEventReturnType::Received
+
+            TimeEventType::External(external_event) => {
+                match external_event {
+                    ExternalTimeEventType::Pause => {
+                        self.paused = true;
+                        TimeEventReturnType::Received
+                    }
+                    ExternalTimeEventType::Start => {
+                        self.paused = false;
+                        TimeEventReturnType::Received
+                    }
+                    ExternalTimeEventType::SetSpeed(turn_min_duration_in_milli_secs) => {
+                        self.turn_min_duration_in_milli_secs = *turn_min_duration_in_milli_secs;
+                        TimeEventReturnType::Received
+                    }
+                    ExternalTimeEventType::GetTimeStackState => {
+                        TimeEventReturnType::StackState(self.clone())
+                    }
+                    ExternalTimeEventType::StartUntilTurn(turn) => {
+                        self.pause_at_turn = Option::Some(*turn);
+                        self.paused = false;
+                        TimeEventReturnType::Received
+                    }
+                }
             }
         }
     }
@@ -98,7 +117,7 @@ impl TimeStackState {
             let min_instant_where_we_can_switch_turn = self.last_turn_timestamp().add(Duration::from_millis(self.turn_min_duration_in_milli_secs()));
 
             if now > min_instant_where_we_can_switch_turn {
-                self.push_event(&TimeEventType::StartedNextTurn);
+                self.push_event(&TimeEventType::Internal(InternalTimeEventType::StartedNextTurn));
                 return true;
             }
         }
@@ -130,23 +149,23 @@ mod tests_int {
     use crate::time::*;
 
     #[test]
-    fn handl_events() {
+    fn handle_events() {
         let mut time_state = TimeStackState::new();
 
-        match time_state.push_event(&TimeEventType::GetTimeStackState) {
+        match time_state.push_event(&TimeEventType::External(ExternalTimeEventType::GetTimeStackState)) {
             TimeEventReturnType::StackState(state) => {
                 assert_eq!(0, state.turn);
-                assert_eq!(false, state.ready_for_next_turn);
+                assert_eq!(true, state.ready_for_next_turn);
             }
             _ => assert!(false)
         }
 
-        match time_state.push_event(&TimeEventType::ReadyForNextTurn) {
+        match time_state.push_event(&TimeEventType::Internal(InternalTimeEventType::ReadyForNextTurn)) {
             TimeEventReturnType::Received => {}
             _ => assert!(false)
         }
 
-        match time_state.push_event(&TimeEventType::GetTimeStackState) {
+        match time_state.push_event(&TimeEventType::External(ExternalTimeEventType::GetTimeStackState)) {
             TimeEventReturnType::StackState(state) => {
                 assert_eq!(0, state.turn);
                 assert_eq!(true, state.ready_for_next_turn);
