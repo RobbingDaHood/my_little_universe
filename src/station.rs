@@ -6,6 +6,18 @@ pub struct LoadingRequest {
     amount: u32,
 }
 
+impl LoadingRequest {
+    pub fn product(&self) -> &Product {
+        &self.product
+    }
+    pub fn amount(&self) -> u32 {
+        self.amount
+    }
+    pub fn new(product: Product, amount: u32) -> Self {
+        LoadingRequest { product, amount }
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum StationEventType {
     Internal(InternalStationEventType),
@@ -40,12 +52,42 @@ pub struct Amount {
     max_storage: u32,
 }
 
+impl Amount {
+    pub fn product(&self) -> &Product {
+        &self.product
+    }
+    pub fn amount(&self) -> u32 {
+        self.amount
+    }
+    pub fn current_storage(&self) -> u32 {
+        self.current_storage
+    }
+    pub fn max_storage(&self) -> u32 {
+        self.max_storage
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct Production {
     input: Vec<Amount>,
     output: Vec<Amount>,
     production_time: u32,
     production_progress: u32,
+}
+
+impl Production {
+    pub fn input(&self) -> &Vec<Amount> {
+        &self.input
+    }
+    pub fn output(&self) -> &Vec<Amount> {
+        &self.output
+    }
+    pub fn production_time(&self) -> u32 {
+        self.production_time
+    }
+    pub fn production_progress(&self) -> u32 {
+        self.production_progress
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -81,6 +123,8 @@ impl StationState {
             event_stack: Vec::new(),
         }
     }
+
+
 
     pub fn push_event(&mut self, event: &StationEventType) -> StationEvenReturnType {
         self.event_stack.push(event.clone());
@@ -179,6 +223,18 @@ impl StationState {
         for mut output in &mut self.production.output {
             output.current_storage += output.amount;
         }
+    }
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn station_type(&self) -> &str {
+        &self.station_type
+    }
+    pub fn production(&self) -> &Production {
+        &self.production
+    }
+    pub fn event_stack(&self) -> &Vec<StationEventType> {
+        &self.event_stack
     }
 }
 
