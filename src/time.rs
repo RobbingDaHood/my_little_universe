@@ -48,9 +48,6 @@ impl TimeStackState {
         }
     }
 
-    pub fn turn(&self) -> u128 {
-        self.turn
-    }
     pub fn turn_min_duration_in_milli_secs(&self) -> u64 {
         self.turn_min_duration_in_milli_secs
     }

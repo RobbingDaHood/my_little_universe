@@ -1,7 +1,5 @@
-use std::str::FromStr;
-
 use crate::products::Product;
-use crate::station::{ExternalStationEventType, LoadingRequest, StationEvenReturnType, StationEventType};
+use crate::station::{ExternalStationEventType, LoadingRequest, StationEvenReturnType};
 use crate::time::{ExternalTimeEventType, TimeEventReturnType};
 
 #[derive(Clone, PartialEq, Debug)]
@@ -29,13 +27,12 @@ impl TryFrom<String> for ExternalCommands {
         return match command_parts[0] {
             "Time" => { Self::parse_time(command_parts) }
             "Station" => { Self::parse_station(command_parts) }
-            _ => { Err(format!("Unknown command, got {}", value)) }
+            _ => { Err(format!("Unknown command, got: {}", value)) }
         };
     }
 }
 
 impl ExternalCommands {
-
     fn parse_time(command_parts: Vec<&str>) -> Result<Self, String> {
         if command_parts.len() < 2 {
             return Err(format!("Time command needs at least the command name. Got {:?}", command_parts));
@@ -112,7 +109,7 @@ impl ExternalCommands {
 
 #[cfg(test)]
 mod tests_int {
-    use crate::external_commands::{ExternalCommands};
+    use crate::external_commands::ExternalCommands;
     use crate::products::Product;
     use crate::station::{ExternalStationEventType, LoadingRequest};
     use crate::time::ExternalTimeEventType;

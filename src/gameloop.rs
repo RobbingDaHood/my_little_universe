@@ -66,9 +66,21 @@ pub struct Communicator {
     channel_sender: Sender<Channel>,
 }
 
+impl Communicator {
+    pub fn channel_sender(&self) -> &Sender<Channel> {
+        &self.channel_sender
+    }
+}
+
 pub struct Channel {
     getter: Receiver<ExternalCommands>,
     returner: Sender<ExternalCommandReturnValues>,
+}
+
+impl Channel {
+    pub fn new(getter: Receiver<ExternalCommands>, returner: Sender<ExternalCommandReturnValues>) -> Self {
+        Channel { getter, returner }
+    }
 }
 
 impl Communicator {
