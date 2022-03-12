@@ -1,3 +1,4 @@
+use std::os::linux::raw::stat;
 use crate::products::Product;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -27,7 +28,7 @@ pub enum InternalStationEventType {
 pub enum ExternalStationEventType {
     RequestLoad(LoadingRequest),
     RequestUnload(LoadingRequest),
-    GetStationState,
+    GetStationState{include_stack: bool},
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -88,8 +89,6 @@ impl StationState {
         }
     }
 
-
-
     pub fn push_event(&mut self, event: &StationEventType) -> StationEvenReturnType {
         self.event_stack.push(event.clone());
         self.handle_event(event)
@@ -97,8 +96,14 @@ impl StationState {
 
     fn handle_event(&mut self, event: &StationEventType) -> StationEvenReturnType {
         return match event {
-            StationEventType::External(ExternalStationEventType::GetStationState) => {
-                StationEvenReturnType::StationState(self.clone())
+            StationEventType::External(ExternalStationEventType::GetStationState{include_stack}) => {
+                if *include_stack {
+                    StationEvenReturnType::StationState(self.clone())
+                } else {
+                    let mut state = self.clone();
+                    state.event_stack = Vec::new();
+                    StationEvenReturnType::StationState(state)
+                }
             }
             StationEventType::External(ExternalStationEventType::RequestLoad(request)) => {
                 for input in &mut self.production.input {

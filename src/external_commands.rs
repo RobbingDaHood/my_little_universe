@@ -101,7 +101,16 @@ impl ExternalCommands {
                 }
                 return Err(format!("RequestUnload need Product and u32 amount. Got {:?}", command_parts));
             }
-            "GetStationState" => { return Ok(ExternalCommands::Station(ExternalStationEventType::GetStationState)); }
+            "GetStationState" => {
+                if command_parts.len() > 2 {
+                    if let Ok(include_stack) = command_parts[2].parse::<bool>() {
+                        return Ok(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack }));
+                    }
+                } else {
+                    return Ok(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: false }));
+                }
+                return Err(format!("GetStationState optinal booĺ include_stack. Got {:?}", command_parts));
+            }
             _ => Err(format!("Unknown Station command. Got {:?}", command_parts))
         }
     }
