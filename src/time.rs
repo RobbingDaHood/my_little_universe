@@ -19,7 +19,7 @@ pub enum ExternalTimeEventType {
     Start,
     StartUntilTurn(u128),
     SetSpeed(u64),
-    GetTimeStackState,
+    GetTimeStackState{include_stack: bool},
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -95,8 +95,14 @@ impl TimeStackState {
                         self.turn_min_duration_in_milli_secs = *turn_min_duration_in_milli_secs;
                         TimeEventReturnType::Received
                     }
-                    ExternalTimeEventType::GetTimeStackState => {
-                        TimeEventReturnType::StackState(self.clone())
+                    ExternalTimeEventType::GetTimeStackState{include_stack} => {
+                        if *include_stack {
+                            TimeEventReturnType::StackState(self.clone())
+                        } else {
+                            let mut state = self.clone();
+                            state.event_stack = Vec::new();
+                            TimeEventReturnType::StackState(state)
+                        }
                     }
                     ExternalTimeEventType::StartUntilTurn(turn) => {
                         self.pause_at_turn = Option::Some(*turn);

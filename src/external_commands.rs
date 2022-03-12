@@ -57,7 +57,16 @@ impl ExternalCommands {
                 }
                 return Err(format!("SetSpeed need a u64 integer argument. Got {:?}", command_parts));
             }
-            "GetTimeStackState" => { return Ok(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState)); }
+            "GetTimeStackState" => {
+                if command_parts.len() > 2 {
+                    if let Ok(include_stack) = command_parts[2].parse::<bool>() {
+                        return Ok(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState { include_stack }));
+                    }
+                } else {
+                    return Ok(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState { include_stack: true }));
+                }
+                return Err(format!("GetStationState optinal booĺ include_stack. Got {:?}", command_parts));
+            }
             _ => Err(format!("Unknown Time command. Got {:?}", command_parts))
         }
     }
@@ -107,7 +116,7 @@ impl ExternalCommands {
                         return Ok(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack }));
                     }
                 } else {
-                    return Ok(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: false }));
+                    return Ok(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: true }));
                 }
                 return Err(format!("GetStationState optinal booĺ include_stack. Got {:?}", command_parts));
             }
