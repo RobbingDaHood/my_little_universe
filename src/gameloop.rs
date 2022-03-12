@@ -3,7 +3,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
 use crate::external_commands::{ExternalCommandReturnValues, ExternalCommands};
-use crate::station::{StationEventType, StationState};
+use crate::station::{InternalStationEventType, StationEventType, StationState};
 use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
 pub struct MyLittleUniverse {
@@ -42,12 +42,18 @@ fn game_loop(channel_getter: Receiver<Channel>) {
                                 _ => {}
                             }
                         }
+                        ExternalCommands::Station(station_event) => {
+                            match channel.returner.send(ExternalCommandReturnValues::Station(universe.station.push_event(&StationEventType::External(station_event)))) {
+                                Err(e) => eprintln!("Failed sending event in gameloop: {}", e),
+                                _ => {}
+                            }
+                        }
                     }
                 }
             }
 
             if universe.time.request_execute_turn() {
-                universe.station.push_event(&StationEventType::ExecuteTurn);
+                universe.station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn));
                 universe.time.push_event(&TimeEventType::Internal(InternalTimeEventType::ReadyForNextTurn));
             }
 
@@ -168,6 +174,7 @@ mod tests_int {
                     _ => assert!(false)
                 }
             }
+            _ => assert!(false)
         }
     }
 
@@ -193,6 +200,7 @@ mod tests_int {
                     _ => assert!(false)
                 }
             }
+            _ => assert!(false)
         }
     }
 
@@ -204,6 +212,7 @@ mod tests_int {
                     _ => assert!(false)
                 }
             }
+            _ => assert!(false)
         }
     }
 }

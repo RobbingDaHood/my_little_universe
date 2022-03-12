@@ -1,6 +1,38 @@
 use crate::products::Product;
 
 #[derive(Clone, PartialEq, Debug)]
+pub struct LoadingRequest {
+    product: Product,
+    amount: u32,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum StationEventType {
+    Internal(InternalStationEventType),
+    External(ExternalStationEventType)
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum InternalStationEventType {
+    ExecuteTurn,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum ExternalStationEventType {
+    RequestLoad(LoadingRequest),
+    RequestUnload(LoadingRequest),
+    GetStationState,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum StationEvenReturnType {
+    Denied(String),
+    Approved,
+    StationState(StationState),
+    TurnExecuted,
+}
+
+#[derive(Clone, PartialEq, Debug)]
 pub struct Amount {
     product: Product,
     amount: u32,
@@ -57,10 +89,10 @@ impl StationState {
 
     fn handle_event(&mut self, event: &StationEventType) -> StationEvenReturnType {
         return match event {
-            StationEventType::GetStationState => {
+            StationEventType::External(ExternalStationEventType::GetStationState) => {
                 StationEvenReturnType::StationState(self.clone())
             }
-            StationEventType::RequestLoad(request) => {
+            StationEventType::External(ExternalStationEventType::RequestLoad(request)) => {
                 for input in &mut self.production.input {
                     if input.product == request.product {
                         match input.current_storage.checked_add(request.amount) {
@@ -77,7 +109,7 @@ impl StationState {
                 }
                 StationEvenReturnType::Denied(format!("Loading request denied. This station does not use {:?} and will not receive it.", &request.product))
             }
-            StationEventType::RequestUnload(request) => {
+            StationEventType::External(ExternalStationEventType::RequestUnload(request)) => {
                 for output in &mut self.production.output {
                     if output.product == request.product {
                         return match output.current_storage.checked_sub(request.amount) {
@@ -93,7 +125,7 @@ impl StationState {
                 }
                 StationEvenReturnType::Denied(format!("Unloading request denied. This station does not produce {:?} and will not sell it.", &request.product))
             }
-            StationEventType::ExecuteTurn => {
+            StationEventType::Internal(InternalStationEventType::ExecuteTurn) => {
                 self.next_turn();
                 StationEvenReturnType::TurnExecuted
             }
@@ -150,40 +182,18 @@ impl StationState {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
-pub struct LoadingRequest {
-    product: Product,
-    amount: u32,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum StationEventType {
-    RequestLoad(LoadingRequest),
-    RequestUnload(LoadingRequest),
-    GetStationState,
-    ExecuteTurn,
-}
-
-#[derive(Clone, PartialEq, Debug)]
-pub enum StationEvenReturnType {
-    Denied(String),
-    Approved,
-    StationState(StationState),
-    TurnExecuted,
-}
-
 #[cfg(test)]
 mod tests_int {
     use crate::products::Product;
-    use crate::station::{Amount, LoadingRequest, Production, StationEvenReturnType, StationEventType, StationState};
+    use crate::station::{Amount, ExternalStationEventType, InternalStationEventType, LoadingRequest, Production, StationEvenReturnType, StationEventType, StationState};
 
     #[test]
     fn request_unload_wrong_product() {
         let mut station = make_mining_station();
-        match station.push_event(&StationEventType::RequestUnload(LoadingRequest {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::RequestUnload(LoadingRequest {
             product: Product::Metals,
             amount: 200,
-        })) {
+        }))) {
             StationEvenReturnType::Denied(s) => { assert_eq!("Unloading request denied. This station does not produce Metals and will not sell it.", s) }
             _ => assert!(false)
         }
@@ -192,10 +202,10 @@ mod tests_int {
     #[test]
     fn request_unload_to_big_amount() {
         let mut station = make_mining_station();
-        match station.push_event(&StationEventType::RequestUnload(LoadingRequest {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::RequestUnload(LoadingRequest {
             product: Product::Ores,
             amount: 200,
-        })) {
+        }))) {
             StationEvenReturnType::Denied(s) => { assert_eq!("Unloading request denied. Requested 200 but there were only 0 available.", s) }
             _ => assert!(false)
         }
@@ -204,10 +214,10 @@ mod tests_int {
     #[test]
     fn request_load_wrong_product() {
         let mut station = make_mining_station();
-        match station.push_event(&StationEventType::RequestLoad(LoadingRequest {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::RequestLoad(LoadingRequest {
             product: Product::Ores,
             amount: 200,
-        })) {
+        }))) {
             StationEvenReturnType::Denied(s) => { assert_eq!("Loading request denied. This station does not use Ores and will not receive it.", s) }
             _ => assert!(false)
         }
@@ -216,10 +226,10 @@ mod tests_int {
     #[test]
     fn request_load_wrong_amount() {
         let mut station = make_mining_station();
-        match station.push_event(&StationEventType::RequestLoad(LoadingRequest {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::RequestLoad(LoadingRequest {
             product: Product::PowerCells,
             amount: 9999999,
-        })) {
+        }))) {
             StationEvenReturnType::Denied(s) => { assert_eq!("Loading request denied. Requested 9999999 but there were only room for 10000.", s) }
             _ => assert!(false)
         }
@@ -228,20 +238,20 @@ mod tests_int {
     #[test]
     fn produce() {
         let mut station = make_mining_station();
-        match station.push_event(&StationEventType::RequestLoad(LoadingRequest {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::RequestLoad(LoadingRequest {
             product: Product::PowerCells,
             amount: 100,
-        })) {
+        }))) {
             StationEvenReturnType::Approved => {}
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::ExecuteTurn) {
+        match station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn)) {
             StationEvenReturnType::TurnExecuted => {}
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::GetStationState) {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState)) {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(0, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(99, state.production.input.get(0).unwrap().current_storage);
@@ -250,12 +260,12 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::ExecuteTurn) {
+        match station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn)) {
             StationEvenReturnType::TurnExecuted => {}
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::GetStationState) {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState)) {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(2, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(99, state.production.input.get(0).unwrap().current_storage);
@@ -264,12 +274,12 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::ExecuteTurn) {
+        match station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn)) {
             StationEvenReturnType::TurnExecuted => {}
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::GetStationState) {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState)) {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(2, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(98, state.production.input.get(0).unwrap().current_storage);
@@ -278,15 +288,15 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::RequestUnload(LoadingRequest {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::RequestUnload(LoadingRequest {
             product: Product::Ores,
             amount: 2,
-        })) {
+        }))) {
             StationEvenReturnType::Approved => {}
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::GetStationState) {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState)) {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(0, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(98, state.production.input.get(0).unwrap().current_storage);
