@@ -155,15 +155,15 @@ impl TimeStackState {
         self.ready_for_next_turn
     }
 
-    pub fn save(&self) {
-        let file_path = Self::save_file_path();
+    pub fn save(&self, universe_name: String) {
+        let file_path = Self::save_file_path(universe_name);
         let mut file = File::create(file_path)
             .expect("Failed to create time save file");
         file.write_all(format!("{}", json!(self)).as_bytes());
     }
 
-    pub fn load(&self) -> TimeStackState {
-        let file_path = Self::save_file_path();
+    pub fn load(&self, universe_name: String) -> TimeStackState {
+        let file_path = Self::save_file_path(universe_name);
         let mut file = File::open(file_path)
             .expect("Filed to open time save file");
         let mut content = String::new();
@@ -172,10 +172,9 @@ impl TimeStackState {
         serde_json::from_str(&content).expect("Fauled to parse loaded time save file")
     }
 
-    fn save_file_path() -> String {
-        let path = "./save/";
-        create_dir_all(path);
-
+    fn save_file_path(universe_name: String) -> String {
+        let path = format!("./save/{}/", universe_name);
+        create_dir_all(&path);
         let file = format!("{}time.json", path);
         file
     }
@@ -238,8 +237,8 @@ mod tests_int {
     #[test]
     fn save_load() {
         let time_state = TimeStackState::new();
-        time_state.save();
-        let loaded_state = time_state.load();
+        time_state.save("testing".to_string());
+        let loaded_state = time_state.load("testing".to_string());
         assert_eq!(time_state, loaded_state);
     }
 }
