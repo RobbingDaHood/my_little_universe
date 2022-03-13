@@ -1,6 +1,9 @@
+use std::fs::{create_dir_all, File};
+use std::io::{Read, Write};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum TimeEventType {
@@ -151,6 +154,31 @@ impl TimeStackState {
     pub fn ready_for_next_turn(&self) -> bool {
         self.ready_for_next_turn
     }
+
+    pub fn save(&self) {
+        let file_path = Self::save_file_path();
+        let mut file = File::create(file_path)
+            .expect("Failed to create time save file");
+        file.write_all(format!("{}", json!(self)).as_bytes());
+    }
+
+    pub fn load(&self) -> TimeStackState {
+        let file_path = Self::save_file_path();
+        let mut file = File::open(file_path)
+            .expect("Filed to open time save file");
+        let mut content = String::new();
+        file.read_to_string(&mut content)
+            .expect("Failed to load time data");
+        serde_json::from_str(&content).expect("Fauled to parse loaded time save file")
+    }
+
+    fn save_file_path() -> String {
+        let path = "./save/";
+        create_dir_all(path);
+
+        let file = format!("{}time.json", path);
+        file
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -162,6 +190,7 @@ pub enum TimeEventReturnType {
 #[cfg(test)]
 mod tests_int {
     use serde_json::json;
+
     use crate::time::*;
 
     #[test]
@@ -204,5 +233,13 @@ mod tests_int {
         let json = json!(time_state).to_string();
         let and_back = serde_json::from_str(&json).unwrap();
         assert_eq!(time_state, and_back);
+    }
+
+    #[test]
+    fn save_load() {
+        let time_state = TimeStackState::new();
+        time_state.save();
+        let loaded_state = time_state.load();
+        assert_eq!(time_state, loaded_state);
     }
 }
