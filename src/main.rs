@@ -1,8 +1,12 @@
+use std::{env, fs};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::ops::Add;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
+
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::external_commands::{ExternalCommandReturnValues, ExternalCommands};
@@ -14,8 +18,15 @@ mod products;
 mod station;
 mod external_commands;
 
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct MainConfig {
+    address: String,
+}
+
 fn main() {
-    let (listener, main_to_universe_sender, universe_to_main_receiver) = setup_game();
+    let config = read_main_config_file();
+
+    let (listener, main_to_universe_sender, universe_to_main_receiver) = setup_game(&config);
 
     for stream in listener.incoming() {
         match stream {
@@ -33,12 +44,33 @@ fn main() {
     drop(listener);
 }
 
+fn read_main_config_file() -> MainConfig {
+    let args: Vec<String> = env::args().collect();
+
+    let mut config_name = if args.len() > 1 {
+        &args[1]
+    } else {
+        "default/"
+    };
+
+    let config_folder = "./config/".to_string().add(config_name);
+
+    let main_config_file = config_folder.to_string().add("/testing.json");
+    println!("Using main config file: {}", main_config_file);
+
+    let contents = fs::read_to_string(main_config_file)
+        .expect("Something went wrong reading the file");
+
+    let config: MainConfig = serde_json::from_str(contents.as_str()).unwrap();
+    config
+}
+
 fn handle_request(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, stream: &mut TcpStream) {
     // connection succeeded
     let mut buffer = [0; 1024];
     if let Err(e) = stream.set_read_timeout(Some(Duration::from_secs(1))) {
         println!("Got error from setting timeout on reading tcp input, aborting: {}", e);
-        return
+        return;
     }
     let buffer_size = match stream.read(&mut buffer) {
         Ok(buffer_size_value) => { buffer_size_value }
@@ -78,9 +110,8 @@ fn handle_request(main_to_universe_sender: &Sender<ExternalCommands>, universe_t
     println!("Handled request with following command: {}", command_as_string);
 }
 
-fn setup_game() -> (TcpListener, Sender<ExternalCommands>, Receiver<ExternalCommandReturnValues>) {
-    let addr = "0.0.0.0:1337";
-    let listener = TcpListener::bind(addr).unwrap();
+fn setup_game(config: &MainConfig) -> (TcpListener, Sender<ExternalCommands>, Receiver<ExternalCommandReturnValues>) {
+    let listener = TcpListener::bind(&config.address).unwrap();
 
     let communicator = Communicator::new();
     let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
@@ -92,6 +123,6 @@ fn setup_game() -> (TcpListener, Sender<ExternalCommands>, Receiver<ExternalComm
         Err(e) => println!("Sender errored: {}", e),
         _ => {}
     }
-    println!("Game is ready and listening on: {}", addr);
+    println!("Game is ready and listening on: {}", &config.address);
     (listener, main_to_universe_sender, universe_to_main_receiver)
 }
