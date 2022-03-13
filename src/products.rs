@@ -12,6 +12,15 @@ pub enum Product {
     PowerCells
 }
 
+pub fn get_prices(product: Product) -> Prices {
+    match product {
+        Product::Ores => { Prices { min: 5, max: 20 } }
+        Product::Metals => { Prices { min: 100, max: 200 } }
+        Product::PowerCells => { Prices { min: 1, max: 15 } }
+    }
+}
+
+
 #[cfg(test)]
 mod tests_int {
     use crate::products::get_prices;

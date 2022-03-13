@@ -1,4 +1,3 @@
-use std::os::linux::raw::stat;
 use crate::products::Product;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -16,7 +15,7 @@ impl LoadingRequest {
 #[derive(Clone, PartialEq, Debug)]
 pub enum StationEventType {
     Internal(InternalStationEventType),
-    External(ExternalStationEventType)
+    External(ExternalStationEventType),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -28,7 +27,7 @@ pub enum InternalStationEventType {
 pub enum ExternalStationEventType {
     RequestLoad(LoadingRequest),
     RequestUnload(LoadingRequest),
-    GetStationState{include_stack: bool},
+    GetStationState { include_stack: bool },
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -47,6 +46,21 @@ pub struct Amount {
     max_storage: u32,
 }
 
+impl Amount {
+    pub fn product(&self) -> &Product {
+        &self.product
+    }
+    pub fn amount(&self) -> u32 {
+        self.amount
+    }
+    pub fn current_storage(&self) -> u32 {
+        self.current_storage
+    }
+    pub fn max_storage(&self) -> u32 {
+        self.max_storage
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct Production {
     input: Vec<Amount>,
@@ -55,12 +69,42 @@ pub struct Production {
     production_progress: u32,
 }
 
+impl Production {
+    pub fn input(&self) -> &Vec<Amount> {
+        &self.input
+    }
+    pub fn output(&self) -> &Vec<Amount> {
+        &self.output
+    }
+    pub fn production_time(&self) -> u32 {
+        self.production_time
+    }
+    pub fn production_progress(&self) -> u32 {
+        self.production_progress
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct StationState {
     name: String,
     station_type: String,
     production: Production,
     event_stack: Vec<StationEventType>,
+}
+
+impl StationState {
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+    pub fn station_type(&self) -> &str {
+        &self.station_type
+    }
+    pub fn production(&self) -> &Production {
+        &self.production
+    }
+    pub fn event_stack(&self) -> &Vec<StationEventType> {
+        &self.event_stack
+    }
 }
 
 impl StationState {
@@ -96,7 +140,7 @@ impl StationState {
 
     fn handle_event(&mut self, event: &StationEventType) -> StationEvenReturnType {
         return match event {
-            StationEventType::External(ExternalStationEventType::GetStationState{include_stack}) => {
+            StationEventType::External(ExternalStationEventType::GetStationState { include_stack }) => {
                 if *include_stack {
                     StationEvenReturnType::StationState(self.clone())
                 } else {
@@ -264,7 +308,7 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState)) {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState { include_stack: true })) {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(0, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(99, state.production.input.get(0).unwrap().current_storage);
@@ -278,7 +322,7 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState)) {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState { include_stack: true })) {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(2, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(99, state.production.input.get(0).unwrap().current_storage);
@@ -292,7 +336,7 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState)) {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState { include_stack: true })) {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(2, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(98, state.production.input.get(0).unwrap().current_storage);
@@ -309,7 +353,7 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState)) {
+        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState { include_stack: true })) {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(0, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(98, state.production.input.get(0).unwrap().current_storage);

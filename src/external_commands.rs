@@ -14,10 +14,10 @@ pub enum ExternalCommandReturnValues {
     Station(StationEvenReturnType),
 }
 
-impl TryFrom<String> for ExternalCommands {
+impl TryFrom<&String> for ExternalCommands {
     type Error = String;
 
-    fn try_from(value: String) -> Result<Self, Self::Error> {
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
         let command_parts = value.split(" ").collect::<Vec<&str>>();
 
         if command_parts.len() == 0 {
@@ -135,22 +135,22 @@ mod tests_int {
     #[test]
     fn it_works() {
         assert_eq!(ExternalCommands::Time(ExternalTimeEventType::Pause),
-                   ExternalCommands::try_from("Time Pause".to_string()).unwrap());
+                   ExternalCommands::try_from(&"Time Pause".to_string()).unwrap());
         assert_eq!(ExternalCommands::Time(ExternalTimeEventType::Start),
-                   ExternalCommands::try_from("Time Start".to_string()).unwrap());
+                   ExternalCommands::try_from(&"Time Start".to_string()).unwrap());
         assert_eq!(ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(22)),
-                   ExternalCommands::try_from("Time StartUntilTurn 22".to_string()).unwrap());
+                   ExternalCommands::try_from(&"Time StartUntilTurn 22".to_string()).unwrap());
         assert_eq!(ExternalCommands::Time(ExternalTimeEventType::SetSpeed(23)),
-                   ExternalCommands::try_from("Time SetSpeed 23".to_string()).unwrap());
-        assert_eq!(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState),
-                   ExternalCommands::try_from("Time GetTimeStackState".to_string()).unwrap());
+                   ExternalCommands::try_from(&"Time SetSpeed 23".to_string()).unwrap());
+        assert_eq!(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState { include_stack: true }),
+                   ExternalCommands::try_from(&"Time GetTimeStackState".to_string()).unwrap());
 
 
         assert_eq!(ExternalCommands::Station(ExternalStationEventType::RequestLoad(LoadingRequest::new(Product::PowerCells, 24))),
-                   ExternalCommands::try_from("Station RequestLoad PowerCells 24".to_string()).unwrap());
+                   ExternalCommands::try_from(&"Station RequestLoad PowerCells 24".to_string()).unwrap());
         assert_eq!(ExternalCommands::Station(ExternalStationEventType::RequestUnload(LoadingRequest::new(Product::Ores, 25))),
-                   ExternalCommands::try_from("Station RequestUnload Ores 25".to_string()).unwrap());
-        assert_eq!(ExternalCommands::Station(ExternalStationEventType::GetStationState),
-                   ExternalCommands::try_from("Station GetStationState".to_string()).unwrap());
+                   ExternalCommands::try_from(&"Station RequestUnload Ores 25".to_string()).unwrap());
+        assert_eq!(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: true }),
+                   ExternalCommands::try_from(&"Station GetStationState".to_string()).unwrap());
     }
 }

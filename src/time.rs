@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 #[derive(Clone, PartialEq, Debug)]
 pub enum TimeEventType {
     Internal(InternalTimeEventType),
-    External(ExternalTimeEventType)
+    External(ExternalTimeEventType),
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -19,7 +19,7 @@ pub enum ExternalTimeEventType {
     Start,
     StartUntilTurn(u128),
     SetSpeed(u64),
-    GetTimeStackState{include_stack: bool},
+    GetTimeStackState { include_stack: bool },
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -46,19 +46,6 @@ impl TimeStackState {
             event_stack: Vec::new(),
             pause_at_turn: Option::None,
         }
-    }
-
-    pub fn turn_min_duration_in_milli_secs(&self) -> u64 {
-        self.turn_min_duration_in_milli_secs
-    }
-    pub fn last_turn_timestamp(&self) -> Instant {
-        self.last_turn_timestamp
-    }
-    pub fn paused(&self) -> bool {
-        self.paused
-    }
-    pub fn ready_for_next_turn(&self) -> bool {
-        self.ready_for_next_turn
     }
 
     pub fn push_event(&mut self, event: &TimeEventType) -> TimeEventReturnType {
@@ -95,7 +82,7 @@ impl TimeStackState {
                         self.turn_min_duration_in_milli_secs = *turn_min_duration_in_milli_secs;
                         TimeEventReturnType::Received
                     }
-                    ExternalTimeEventType::GetTimeStackState{include_stack} => {
+                    ExternalTimeEventType::GetTimeStackState { include_stack } => {
                         if *include_stack {
                             TimeEventReturnType::StackState(self.clone())
                         } else {
@@ -139,6 +126,21 @@ impl TimeStackState {
             }
         }
     }
+    pub fn turn(&self) -> u128 {
+        self.turn
+    }
+    pub fn turn_min_duration_in_milli_secs(&self) -> u64 {
+        self.turn_min_duration_in_milli_secs
+    }
+    pub fn last_turn_timestamp(&self) -> Instant {
+        self.last_turn_timestamp
+    }
+    pub fn paused(&self) -> bool {
+        self.paused
+    }
+    pub fn ready_for_next_turn(&self) -> bool {
+        self.ready_for_next_turn
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -155,7 +157,7 @@ mod tests_int {
     fn handle_events() {
         let mut time_state = TimeStackState::new();
 
-        match time_state.push_event(&TimeEventType::External(ExternalTimeEventType::GetTimeStackState)) {
+        match time_state.push_event(&TimeEventType::External(ExternalTimeEventType::GetTimeStackState { include_stack: true })) {
             TimeEventReturnType::StackState(state) => {
                 assert_eq!(0, state.turn);
                 assert_eq!(true, state.ready_for_next_turn);
@@ -168,7 +170,7 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match time_state.push_event(&TimeEventType::External(ExternalTimeEventType::GetTimeStackState)) {
+        match time_state.push_event(&TimeEventType::External(ExternalTimeEventType::GetTimeStackState { include_stack: true })) {
             TimeEventReturnType::StackState(state) => {
                 assert_eq!(0, state.turn);
                 assert_eq!(true, state.ready_for_next_turn);
