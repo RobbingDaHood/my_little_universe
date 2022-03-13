@@ -3,6 +3,7 @@ use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::time::Duration;
+use serde_json::json;
 
 use crate::external_commands::{ExternalCommandReturnValues, ExternalCommands};
 use crate::gameloop::{Channel, Communicator};
@@ -68,7 +69,7 @@ fn handle_request(main_to_universe_sender: &Sender<ExternalCommands>, universe_t
 
             let return_values = universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap();
 
-            if let Err(e) = stream.write(format!("{:#?} \n", return_values).as_bytes()) {
+            if let Err(e) = stream.write(format!("{} \n", json!(return_values)).as_bytes()) {
                 panic!("{}", e);
             }
         }

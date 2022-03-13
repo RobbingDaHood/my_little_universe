@@ -119,12 +119,12 @@ mod tests_int {
         };
         match time_stack.channel_sender.send(channel) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => println!("Sender send without error.")
+            _ => { }
         }
 
         match main_to_universe_sender.send(ExternalCommands::Time(ExternalTimeEventType::Pause)) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => println!("Sender send without error.")
+            _ => { }
         }
 
         await_recived(&universe_to_main_receiver);
@@ -142,7 +142,7 @@ mod tests_int {
         };
         match time_stack.channel_sender.send(channel) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => println!("Sender send without error.")
+            _ => { }
         }
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 0);
@@ -170,7 +170,7 @@ mod tests_int {
         };
         match time_stack.channel_sender.send(channel) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => println!("Sender send without error.")
+            _ => { }
         }
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 0);
@@ -179,7 +179,7 @@ mod tests_int {
         send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::Pause));
         match main_to_universe_sender.send(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => println!("Sender send without error.")
+            _ => { }
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
@@ -205,7 +205,7 @@ mod tests_int {
         };
         match time_stack.channel_sender.send(channel) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => println!("Sender send without error.")
+            _ => { }
         }
 
         verify_initial_state_of_station(&main_to_universe_sender, &universe_to_main_receiver);
@@ -245,7 +245,7 @@ mod tests_int {
     fn send_request_to_station(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: ExternalStationEventType) {
         match main_to_universe_sender.send(ExternalCommands::Station(request)) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => println!("Sender send without error.")
+            _ => { }
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
@@ -262,7 +262,7 @@ mod tests_int {
     fn verify_initial_state_of_station(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>) {
         match main_to_universe_sender.send(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => println!("Sender send without error.")
+            _ => { }
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
@@ -296,7 +296,7 @@ mod tests_int {
     fn check_station_state(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, expected_first_input_current_storage: u32, expected_first_output_current_storage: u32, expected_production_progress: u32) {
         match main_to_universe_sender.send(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => println!("Sender send without error.")
+            _ => { }
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
@@ -317,16 +317,16 @@ mod tests_int {
     fn send_and_wait(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, event_type: ExternalCommands) {
         match main_to_universe_sender.send(event_type) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => println!("Sender send without error.")
+            _ => { }
         }
 
         await_recived(&universe_to_main_receiver);
     }
 
-    fn check_turn(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, expected_turn_count: u128) {
+    fn check_turn(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, expected_turn_count: u64) {
         match main_to_universe_sender.send(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => println!("Sender send without error.")
+            _ => { }
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
@@ -344,7 +344,7 @@ mod tests_int {
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
             ExternalCommandReturnValues::Time(time_return) => {
                 match time_return {
-                    Received => { println!("Recived without error.") }
+                    Received => { }
                     _ => assert!(false)
                 }
             }

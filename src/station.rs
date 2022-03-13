@@ -1,6 +1,7 @@
 use crate::products::Product;
+use serde::{Serialize, Deserialize};
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct LoadingRequest {
     product: Product,
     amount: u32,
@@ -12,25 +13,25 @@ impl LoadingRequest {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum StationEventType {
     Internal(InternalStationEventType),
     External(ExternalStationEventType),
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum InternalStationEventType {
     ExecuteTurn,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalStationEventType {
     RequestLoad(LoadingRequest),
     RequestUnload(LoadingRequest),
     GetStationState { include_stack: bool },
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum StationEvenReturnType {
     Denied(String),
     Approved,
@@ -38,7 +39,7 @@ pub enum StationEvenReturnType {
     TurnExecuted,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Amount {
     product: Product,
     amount: u32,
@@ -61,7 +62,7 @@ impl Amount {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Production {
     input: Vec<Amount>,
     output: Vec<Amount>,
@@ -84,7 +85,7 @@ impl Production {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct StationState {
     name: String,
     station_type: String,
@@ -241,6 +242,7 @@ impl StationState {
 
 #[cfg(test)]
 mod tests_int {
+    use serde_json::json;
     use crate::products::Product;
     use crate::station::{Amount, ExternalStationEventType, InternalStationEventType, LoadingRequest, Production, StationEvenReturnType, StationEventType, StationState};
 
@@ -361,6 +363,14 @@ mod tests_int {
             }
             _ => assert!(false)
         }
+    }
+
+    #[test]
+    fn serialise_deserialize() {
+        let station = make_mining_station();
+        let json = json!(station).to_string();
+        let and_back = serde_json::from_str(&json).unwrap();
+        assert_eq!(station, and_back);
     }
 
     fn make_mining_station() -> StationState {

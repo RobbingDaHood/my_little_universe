@@ -1,34 +1,35 @@
-use std::ops::Add;
-use std::time::{Duration, Instant};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Clone, PartialEq, Debug)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum TimeEventType {
     Internal(InternalTimeEventType),
     External(ExternalTimeEventType),
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum InternalTimeEventType {
     ReadyForNextTurn,
     StartedNextTurn,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalTimeEventType {
     Pause,
     Start,
-    StartUntilTurn(u128),
+    StartUntilTurn(u64),
     SetSpeed(u64),
     GetTimeStackState { include_stack: bool },
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct TimeStackState {
-    turn: u128,
+    turn: u64,
     turn_min_duration_in_milli_secs: u64,
-    last_turn_timestamp: Instant,
+    last_turn_timestamp: u64,
     last_processed_event_index: usize,
-    pause_at_turn: Option<u128>,
+    pause_at_turn: Option<u64>,
     paused: bool,
     ready_for_next_turn: bool,
     event_stack: Vec<TimeEventType>,
@@ -39,13 +40,22 @@ impl TimeStackState {
         TimeStackState {
             turn: 0,
             turn_min_duration_in_milli_secs: 0,
-            last_turn_timestamp: Instant::now(),
+            last_turn_timestamp: Self::epcoh_time(),
             last_processed_event_index: 0,
             paused: true,
             ready_for_next_turn: true,
             event_stack: Vec::new(),
             pause_at_turn: Option::None,
         }
+    }
+
+    fn epcoh_time() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("Time went backwards")
+            .as_millis()
+            .try_into()
+            .unwrap()
     }
 
     pub fn push_event(&mut self, event: &TimeEventType) -> TimeEventReturnType {
@@ -103,8 +113,8 @@ impl TimeStackState {
 
     pub fn request_execute_turn(&mut self) -> bool {
         if self.ready_for_next_turn() && !self.paused() {
-            let now = Instant::now();
-            let min_instant_where_we_can_switch_turn = self.last_turn_timestamp().add(Duration::from_millis(self.turn_min_duration_in_milli_secs()));
+            let now = Self::epcoh_time();
+            let min_instant_where_we_can_switch_turn = self.last_turn_timestamp().checked_add(self.turn_min_duration_in_milli_secs() as u64).unwrap();
 
             if now > min_instant_where_we_can_switch_turn {
                 self.push_event(&TimeEventType::Internal(InternalTimeEventType::StartedNextTurn));
@@ -117,7 +127,7 @@ impl TimeStackState {
     fn next_turn(&mut self) {
         self.turn += 1;
         self.ready_for_next_turn = false;
-        self.last_turn_timestamp = Instant::now();
+        self.last_turn_timestamp = Self::epcoh_time();
 
         if let Some(pause_at_turn) = self.pause_at_turn {
             if self.turn >= pause_at_turn {
@@ -126,13 +136,13 @@ impl TimeStackState {
             }
         }
     }
-    pub fn turn(&self) -> u128 {
+    pub fn turn(&self) -> u64 {
         self.turn
     }
     pub fn turn_min_duration_in_milli_secs(&self) -> u64 {
         self.turn_min_duration_in_milli_secs
     }
-    pub fn last_turn_timestamp(&self) -> Instant {
+    pub fn last_turn_timestamp(&self) -> u64 {
         self.last_turn_timestamp
     }
     pub fn paused(&self) -> bool {
@@ -143,7 +153,7 @@ impl TimeStackState {
     }
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum TimeEventReturnType {
     StackState(TimeStackState),
     Received,
@@ -151,6 +161,7 @@ pub enum TimeEventReturnType {
 
 #[cfg(test)]
 mod tests_int {
+    use serde_json::json;
     use crate::time::*;
 
     #[test]
@@ -185,5 +196,13 @@ mod tests_int {
         assert_eq!(0, time_state.turn);
         time_state.next_turn();
         assert_eq!(1, time_state.turn);
+    }
+
+    #[test]
+    fn serialise_deserialize() {
+        let time_state = TimeStackState::new();
+        let json = json!(time_state).to_string();
+        let and_back = serde_json::from_str(&json).unwrap();
+        assert_eq!(time_state, and_back);
     }
 }

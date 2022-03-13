@@ -1,15 +1,16 @@
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Prices {
     min: i32,
     max: i32,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Product {
     Ores,
     Metals,
-    PowerCells
+    PowerCells,
 }
 
 pub fn get_prices(product: Product) -> Prices {

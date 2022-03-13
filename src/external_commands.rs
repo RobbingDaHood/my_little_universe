@@ -1,6 +1,7 @@
 use crate::products::Product;
 use crate::station::{ExternalStationEventType, LoadingRequest, StationEvenReturnType};
 use crate::time::{ExternalTimeEventType, TimeEventReturnType};
+use serde::{Serialize, Deserialize};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ExternalCommands {
@@ -8,7 +9,7 @@ pub enum ExternalCommands {
     Station(ExternalStationEventType),
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalCommandReturnValues {
     Time(TimeEventReturnType),
     Station(StationEvenReturnType),
@@ -43,11 +44,11 @@ impl ExternalCommands {
             "Start" => { return Ok(ExternalCommands::Time(ExternalTimeEventType::Start)); }
             "StartUntilTurn" => {
                 if command_parts.len() > 2 {
-                    if let Ok(turn_number) = command_parts[2].parse::<u128>() {
+                    if let Ok(turn_number) = command_parts[2].parse::<u64>() {
                         return Ok(ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(turn_number)));
                     }
                 }
-                return Err(format!("StartUntilTurn need a u128 integer argument. Got {:?}", command_parts));
+                return Err(format!("StartUntilTurn need a u64 integer argument. Got {:?}", command_parts));
             }
             "SetSpeed" => {
                 if command_parts.len() > 2 {
