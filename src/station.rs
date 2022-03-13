@@ -1,8 +1,4 @@
-use std::fs::{create_dir_all, File};
-use std::io::{Read, Write};
-
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 use crate::products::Product;
 
@@ -243,35 +239,10 @@ impl StationState {
             output.current_storage += output.amount;
         }
     }
-
-    pub fn save(&self, universe_name: String) {
-        let file_path = Self::save_file_path(self, universe_name);
-        let mut file = File::create(file_path)
-            .expect("Failed to create time save file");
-        file.write_all(format!("{}", json!(self)).as_bytes());
-    }
-
-    pub fn load(&self, universe_name: String) -> StationState {
-        let file_path = Self::save_file_path(self, universe_name);
-        let mut file = File::open(file_path)
-            .expect("Filed to open time save file");
-        let mut content = String::new();
-        file.read_to_string(&mut content)
-            .expect("Failed to load time data");
-        serde_json::from_str(&content).expect("Fauled to parse loaded time save file")
-    }
-
-    fn save_file_path(&self, universe_name: String) -> String {
-        let path = format!("./save/{}/stations/", universe_name);
-        create_dir_all(&path);
-        let file = format!("{}{}.json", path, self.name);
-        file
-    }
 }
 
 #[cfg(test)]
 mod tests_int {
-    use std::fs;
     use serde_json::json;
 
     use crate::products::Product;
@@ -403,19 +374,6 @@ mod tests_int {
         let json = json!(station).to_string();
         let and_back = serde_json::from_str(&json).unwrap();
         assert_eq!(station, and_back);
-    }
-
-    #[test]
-    fn save_load() {
-        let mut station = make_mining_station();
-        execute_all_events(&mut station);
-
-        station.save("testing".to_string());
-        let loaded_state = station.load("testing".to_string());
-        assert_eq!(station, loaded_state);
-
-        //Cleanup
-        fs::remove_dir_all("./save/");
     }
 
     fn execute_all_events(station: &mut StationState) {

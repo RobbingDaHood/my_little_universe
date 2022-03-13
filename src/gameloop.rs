@@ -10,23 +10,38 @@ pub struct MyLittleUniverse {
     time: TimeStackState,
     channels: Vec<Channel>,
     station: StationState,
+    universe_name: String,
 }
 
 impl MyLittleUniverse {
-    pub fn new() -> Self {
+    pub fn new(universe_name: String, time: TimeStackState, station: StationState) -> Self {
         MyLittleUniverse {
-            time: TimeStackState::new(),
+            time: time,
             channels: Vec::new(),
-            station: StationState::test_station(),
+            station: station,
+            universe_name,
         }
+    }
+
+    pub fn time(&self) -> &TimeStackState {
+        &self.time
+    }
+
+    pub fn station(&self) -> &StationState {
+        &self.station
+    }
+
+
+    pub fn universe_name(&self) -> &str {
+        &self.universe_name
     }
 }
 
 // channel_getter is one channel to receive new channels.
 // Then the loop will listen for events from that channel to execute.
-fn game_loop(channel_getter: Receiver<Channel>) {
+fn game_loop(channel_getter: Receiver<Channel>, universe_name: String) {
     thread::spawn(move || {
-        let mut universe = MyLittleUniverse::new();
+        let mut universe = MyLittleUniverse::new(universe_name.clone(), TimeStackState::new(), StationState::test_station());
 
         loop {
             for channel in channel_getter.try_recv() {
@@ -84,10 +99,10 @@ impl Channel {
 }
 
 impl Communicator {
-    pub fn new() -> Self {
+    pub fn new(universe_name: String) -> Self {
         let (channel_sender, channel_getter): (Sender<Channel>, Receiver<Channel>) = mpsc::channel();
         let stack = Communicator { channel_sender };
-        game_loop(channel_getter);
+        game_loop(channel_getter, universe_name);
         stack
     }
 }
@@ -112,19 +127,19 @@ mod tests_int {
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();
 
-        let time_stack = Communicator::new();
+        let time_stack = Communicator::new("testing".to_string());
         let channel = Channel {
             getter: main_to_universe_receiver,
             returner: universe_to_main_sender,
         };
         match time_stack.channel_sender.send(channel) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => { }
+            _ => {}
         }
 
         match main_to_universe_sender.send(ExternalCommands::Time(ExternalTimeEventType::Pause)) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => { }
+            _ => {}
         }
 
         await_recived(&universe_to_main_receiver);
@@ -135,14 +150,14 @@ mod tests_int {
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();
 
-        let time_stack = Communicator::new();
+        let time_stack = Communicator::new("testing".to_string());
         let channel = Channel {
             getter: main_to_universe_receiver,
             returner: universe_to_main_sender,
         };
         match time_stack.channel_sender.send(channel) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => { }
+            _ => {}
         }
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 0);
@@ -163,14 +178,14 @@ mod tests_int {
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();
 
-        let time_stack = Communicator::new();
+        let time_stack = Communicator::new("testing".to_string());
         let channel = Channel {
             getter: main_to_universe_receiver,
             returner: universe_to_main_sender,
         };
         match time_stack.channel_sender.send(channel) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => { }
+            _ => {}
         }
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 0);
@@ -179,7 +194,7 @@ mod tests_int {
         send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::Pause));
         match main_to_universe_sender.send(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => { }
+            _ => {}
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
@@ -198,14 +213,14 @@ mod tests_int {
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();
 
-        let time_stack = Communicator::new();
+        let time_stack = Communicator::new("testing".to_string());
         let channel = Channel {
             getter: main_to_universe_receiver,
             returner: universe_to_main_sender,
         };
         match time_stack.channel_sender.send(channel) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => { }
+            _ => {}
         }
 
         verify_initial_state_of_station(&main_to_universe_sender, &universe_to_main_receiver);
@@ -245,7 +260,7 @@ mod tests_int {
     fn send_request_to_station(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: ExternalStationEventType) {
         match main_to_universe_sender.send(ExternalCommands::Station(request)) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => { }
+            _ => {}
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
@@ -262,7 +277,7 @@ mod tests_int {
     fn verify_initial_state_of_station(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>) {
         match main_to_universe_sender.send(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => { }
+            _ => {}
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
@@ -296,7 +311,7 @@ mod tests_int {
     fn check_station_state(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, expected_first_input_current_storage: u32, expected_first_output_current_storage: u32, expected_production_progress: u32) {
         match main_to_universe_sender.send(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => { }
+            _ => {}
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
@@ -317,7 +332,7 @@ mod tests_int {
     fn send_and_wait(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, event_type: ExternalCommands) {
         match main_to_universe_sender.send(event_type) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => { }
+            _ => {}
         }
 
         await_recived(&universe_to_main_receiver);
@@ -326,7 +341,7 @@ mod tests_int {
     fn check_turn(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, expected_turn_count: u64) {
         match main_to_universe_sender.send(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
-            _ => { }
+            _ => {}
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
@@ -344,7 +359,7 @@ mod tests_int {
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
             ExternalCommandReturnValues::Time(time_return) => {
                 match time_return {
-                    Received => { }
+                    Received => {}
                     _ => assert!(false)
                 }
             }

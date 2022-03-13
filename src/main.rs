@@ -17,6 +17,7 @@ mod gameloop;
 mod products;
 mod station;
 mod external_commands;
+mod save_load;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct MainConfig {
@@ -24,9 +25,9 @@ pub struct MainConfig {
 }
 
 fn main() {
-    let config = read_main_config_file();
+    let (config, universe_name) = read_main_config_file();
 
-    let (listener, main_to_universe_sender, universe_to_main_receiver) = setup_game(&config);
+    let (listener, main_to_universe_sender, universe_to_main_receiver) = setup_game(&config, universe_name);
 
     for stream in listener.incoming() {
         match stream {
@@ -44,11 +45,17 @@ fn main() {
     drop(listener);
 }
 
-fn read_main_config_file() -> MainConfig {
+fn read_main_config_file() -> (MainConfig, String) {
     let args: Vec<String> = env::args().collect();
 
-    let mut config_name = if args.len() > 1 {
+    let universe_name = if args.len() > 1 {
         &args[1]
+    } else {
+        panic!("First argument of starting the game is the universe_name, got: {:?}", args)
+    };
+
+    let config_name = if args.len() > 2 {
+        &args[2]
     } else {
         "default/"
     };
@@ -62,7 +69,7 @@ fn read_main_config_file() -> MainConfig {
         .expect("Something went wrong reading the file");
 
     let config: MainConfig = serde_json::from_str(contents.as_str()).unwrap();
-    config
+    (config, universe_name.clone())
 }
 
 fn handle_request(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, stream: &mut TcpStream) {
@@ -110,10 +117,10 @@ fn handle_request(main_to_universe_sender: &Sender<ExternalCommands>, universe_t
     println!("Handled request with following command: {}", command_as_string);
 }
 
-fn setup_game(config: &MainConfig) -> (TcpListener, Sender<ExternalCommands>, Receiver<ExternalCommandReturnValues>) {
+fn setup_game(config: &MainConfig, universe_name: String) -> (TcpListener, Sender<ExternalCommands>, Receiver<ExternalCommandReturnValues>) {
     let listener = TcpListener::bind(&config.address).unwrap();
 
-    let communicator = Communicator::new();
+    let communicator = Communicator::new(universe_name);
     let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
     let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();
 
