@@ -188,6 +188,8 @@ pub enum TimeEventReturnType {
 
 #[cfg(test)]
 mod tests_int {
+    use std::fs;
+
     use serde_json::json;
 
     use crate::time::*;
@@ -228,17 +230,54 @@ mod tests_int {
 
     #[test]
     fn serialise_deserialize() {
-        let time_state = TimeStackState::new();
+        let mut time_state = TimeStackState::new();
+        push_all_events(&mut time_state);
+
         let json = json!(time_state).to_string();
         let and_back = serde_json::from_str(&json).unwrap();
         assert_eq!(time_state, and_back);
     }
 
+    fn push_all_events(time_state: &mut TimeStackState) {
+        match time_state.push_event(&TimeEventType::Internal(InternalTimeEventType::ReadyForNextTurn)) {
+            TimeEventReturnType::Received => {}
+            _ => assert!(false)
+        }
+        match time_state.push_event(&TimeEventType::Internal(InternalTimeEventType::StartedNextTurn)) {
+            TimeEventReturnType::Received => {}
+            _ => assert!(false)
+        }
+        match time_state.push_event(&TimeEventType::External(ExternalTimeEventType::Start)) {
+            TimeEventReturnType::Received => {}
+            _ => assert!(false)
+        }
+        match time_state.push_event(&TimeEventType::External(ExternalTimeEventType::Pause)) {
+            TimeEventReturnType::Received => {}
+            _ => assert!(false)
+        }
+        match time_state.push_event(&TimeEventType::External(ExternalTimeEventType::GetTimeStackState { include_stack: true })) {
+            TimeEventReturnType::StackState(_) => {}
+            _ => assert!(false)
+        }
+        match time_state.push_event(&TimeEventType::External(ExternalTimeEventType::SetSpeed(1000))) {
+            TimeEventReturnType::Received => {}
+            _ => assert!(false)
+        }
+        match time_state.push_event(&TimeEventType::External(ExternalTimeEventType::StartUntilTurn(1000))) {
+            TimeEventReturnType::Received => {}
+            _ => assert!(false)
+        }
+    }
+
     #[test]
     fn save_load() {
-        let time_state = TimeStackState::new();
+        let mut time_state = TimeStackState::new();
+        push_all_events(&mut time_state);
         time_state.save("testing".to_string());
         let loaded_state = time_state.load("testing".to_string());
         assert_eq!(time_state, loaded_state);
+
+        //Cleanup
+        fs::remove_dir_all("./save/");
     }
 }
