@@ -1,6 +1,7 @@
 use std::fs;
 use std::fs::{create_dir_all, File};
 use std::io::{Read, Write};
+use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -106,12 +107,23 @@ pub fn load_universe(universe_name: String) -> MyLittleUniverse {
     MyLittleUniverse::new(universe_name.clone(), time, stations.get(0).unwrap().clone())
 }
 
+pub fn load_or_create_universe(universe_name: String) -> MyLittleUniverse {
+    let save_file_path = format!("./save/{}/", universe_name);
+
+    return if Path::new(&save_file_path).is_dir() {
+        load_universe(universe_name)
+    } else {
+        MyLittleUniverse::new(universe_name.clone(), TimeStackState::new(), StationState::test_station())
+    }
+}
+
 #[cfg(test)]
 mod tests_int {
     use std::fs;
+    use std::path::Path;
 
     use crate::gameloop::MyLittleUniverse;
-    use crate::save_load::{load_station, load_time, load_universe};
+    use crate::save_load::{load_or_create_universe, load_station, load_time, load_universe};
     use crate::station::StationState;
     use crate::time::TimeStackState;
 
@@ -148,5 +160,17 @@ mod tests_int {
 
         //Cleanup
         fs::remove_dir_all("./save/save_load_universe/").expect("Had trouble cleanup after save_load_time");
+    }
+
+    #[test]
+    fn load_or_create_universe_test() {
+        assert_eq!(false, Path::new(&"./save/load_or_create_universe").is_dir());
+        let universe = load_or_create_universe("load_or_create_universe".to_string());
+        assert_eq!(false, Path::new(&"./save/load_or_create_universe").is_dir());
+        universe.save();
+        assert_eq!(true, Path::new(&"./save/load_or_create_universe").is_dir());
+
+        //Cleanup
+        fs::remove_dir_all("./save/load_or_create_universe/").expect("Had trouble cleanup after save_load_time");
     }
 }

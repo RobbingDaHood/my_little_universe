@@ -3,7 +3,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
 use crate::external_commands::{ExternalCommandReturnValues, ExternalCommands};
-use crate::save_load::ExternalSaveLoad;
+use crate::save_load::{ExternalSaveLoad, load_or_create_universe};
 use crate::station::{InternalStationEventType, StationEventType, StationState};
 use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
@@ -42,7 +42,7 @@ impl MyLittleUniverse {
 // Then the loop will listen for events from that channel to execute.
 fn game_loop(channel_getter: Receiver<Channel>, universe_name: String) {
     thread::spawn(move || {
-        let mut universe = MyLittleUniverse::new(universe_name.clone(), TimeStackState::new(), StationState::test_station());
+        let mut universe = load_or_create_universe(universe_name);
 
         loop {
             for channel in channel_getter.try_recv() {
