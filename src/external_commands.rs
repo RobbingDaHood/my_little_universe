@@ -1,18 +1,22 @@
+use serde::{Deserialize, Serialize};
+
 use crate::products::Product;
+use crate::save_load::{ExternalSaveLoad, ExternalSaveLoadReturnValue};
 use crate::station::{ExternalStationEventType, LoadingRequest, StationEvenReturnType};
 use crate::time::{ExternalTimeEventType, TimeEventReturnType};
-use serde::{Serialize, Deserialize};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ExternalCommands {
     Time(ExternalTimeEventType),
     Station(ExternalStationEventType),
+    Save(ExternalSaveLoad),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalCommandReturnValues {
     Time(TimeEventReturnType),
     Station(StationEvenReturnType),
+    Save(ExternalSaveLoadReturnValue),
 }
 
 impl TryFrom<&String> for ExternalCommands {
@@ -28,6 +32,7 @@ impl TryFrom<&String> for ExternalCommands {
         return match command_parts[0] {
             "Time" => { Self::parse_time(command_parts) }
             "Station" => { Self::parse_station(command_parts) }
+            "Save" => { Self::parse_save_load(command_parts) }
             _ => { Err(format!("Unknown command, got: {}", value)) }
         };
     }
@@ -124,12 +129,31 @@ impl ExternalCommands {
             _ => Err(format!("Unknown Station command. Got {:?}", command_parts))
         }
     }
+
+    fn parse_save_load(command_parts: Vec<&str>) -> Result<ExternalCommands, String> {
+        if command_parts.len() < 2 {
+            return Err(format!("Save command needs at least the command name. Got {:?}", command_parts));
+        }
+
+        match command_parts[1] {
+            "SaveTheUniverse" => { return Ok(ExternalCommands::Save(ExternalSaveLoad::SaveTheUniverse)); }
+            "SaveTheUniverseAs" => {
+                if command_parts.len() < 3 {
+                    return Err(format!("SaveTheUniverseAs needs a name of the save folder. Got {:?}", command_parts));
+                }
+
+                return Ok(ExternalCommands::Save(ExternalSaveLoad::SaveTheUniverseAs(command_parts[2].to_string())));
+            }
+            _ => Err(format!("Unknown Save command. Got {:?}", command_parts))
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests_int {
     use crate::external_commands::ExternalCommands;
     use crate::products::Product;
+    use crate::save_load::ExternalSaveLoad;
     use crate::station::{ExternalStationEventType, LoadingRequest};
     use crate::time::ExternalTimeEventType;
 
@@ -153,5 +177,10 @@ mod tests_int {
                    ExternalCommands::try_from(&"Station RequestUnload Ores 25".to_string()).unwrap());
         assert_eq!(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: true }),
                    ExternalCommands::try_from(&"Station GetStationState".to_string()).unwrap());
+
+        assert_eq!(ExternalCommands::Save(ExternalSaveLoad::SaveTheUniverse),
+                   ExternalCommands::try_from(&"Save SaveTheUniverse".to_string()).unwrap());
+        assert_eq!(ExternalCommands::Save(ExternalSaveLoad::SaveTheUniverseAs("new_name".to_string())),
+                   ExternalCommands::try_from(&"Save SaveTheUniverseAs new_name".to_string()).unwrap());
     }
 }

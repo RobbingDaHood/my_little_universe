@@ -2,11 +2,23 @@ use std::fs;
 use std::fs::{create_dir_all, File};
 use std::io::{Read, Write};
 
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::gameloop::MyLittleUniverse;
 use crate::station::StationState;
 use crate::time::TimeStackState;
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum ExternalSaveLoad {
+    SaveTheUniverseAs(String),
+    SaveTheUniverse
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum ExternalSaveLoadReturnValue {
+    UniverseIsSaved
+}
 
 impl TimeStackState {
     pub fn save(&self, universe_name: &String) {
@@ -58,9 +70,15 @@ fn load_station(universe_name: &String, station_name: &String) -> StationState {
 }
 
 impl MyLittleUniverse {
-    pub fn save(&self) {
+    pub fn save(&self) -> ExternalSaveLoadReturnValue{
         self.time().save(&self.universe_name().to_string());
         self.station().save(&self.universe_name().to_string());
+        ExternalSaveLoadReturnValue::UniverseIsSaved
+    }
+    pub fn save_as(&self, new_universe_name: &String) -> ExternalSaveLoadReturnValue{
+        self.time().save(new_universe_name);
+        self.station().save(new_universe_name);
+        ExternalSaveLoadReturnValue::UniverseIsSaved
     }
 }
 

@@ -3,6 +3,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
 use crate::external_commands::{ExternalCommandReturnValues, ExternalCommands};
+use crate::save_load::ExternalSaveLoad;
 use crate::station::{InternalStationEventType, StationEventType, StationState};
 use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
@@ -52,15 +53,25 @@ fn game_loop(channel_getter: Receiver<Channel>, universe_name: String) {
                 for event in channel.getter.try_recv() {
                     match event {
                         ExternalCommands::Time(time_event) => {
-                            match channel.returner.send(ExternalCommandReturnValues::Time(universe.time.push_event(&TimeEventType::External(time_event)))) {
-                                Err(e) => eprintln!("Failed sending event in gameloop: {}", e),
-                                _ => {}
-                            }
+                            let return_type = universe.time.push_event(&TimeEventType::External(time_event));
+                            let return_event = ExternalCommandReturnValues::Time(return_type);
+                            channel.returner.send(return_event).expect("Failed sending event in gameloop.")
                         }
                         ExternalCommands::Station(station_event) => {
-                            match channel.returner.send(ExternalCommandReturnValues::Station(universe.station.push_event(&StationEventType::External(station_event)))) {
-                                Err(e) => eprintln!("Failed sending event in gameloop: {}", e),
-                                _ => {}
+                            let return_type = universe.station.push_event(&StationEventType::External(station_event));
+                            let return_event = ExternalCommandReturnValues::Station(return_type);
+                            channel.returner.send(return_event).expect("Failed sending event in gameloop.")
+                        }
+                        ExternalCommands::Save(save_event) => {
+                            match save_event {
+                                ExternalSaveLoad::SaveTheUniverseAs(universe_name) => {
+                                    channel.returner.send(ExternalCommandReturnValues::Save(universe.save_as(&universe_name)))
+                                        .expect("Failed to save the universe");
+                                }
+                                ExternalSaveLoad::SaveTheUniverse => {
+                                    channel.returner.send(ExternalCommandReturnValues::Save(universe.save()))
+                                        .expect("Failed to save the universe");
+                                }
                             }
                         }
                     }
