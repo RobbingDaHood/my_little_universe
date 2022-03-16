@@ -9,11 +9,12 @@ use serde_json::json;
 use crate::station::StationState;
 use crate::time::TimeStackState;
 use crate::my_little_universe::MyLittleUniverse;
+use crate::universe_generator::generate_simple_universe;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ExternalSaveLoad {
     SaveTheUniverseAs(String),
-    SaveTheUniverse
+    SaveTheUniverse,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -71,12 +72,12 @@ fn load_station(universe_name: &String, station_name: &String) -> StationState {
 }
 
 impl MyLittleUniverse {
-    pub fn save(&self) -> ExternalSaveLoadReturnValue{
+    pub fn save(&self) -> ExternalSaveLoadReturnValue {
         self.time().save(&self.universe_name().to_string());
         self.station().save(&self.universe_name().to_string());
         ExternalSaveLoadReturnValue::UniverseIsSaved
     }
-    pub fn save_as(&self, new_universe_name: &String) -> ExternalSaveLoadReturnValue{
+    pub fn save_as(&self, new_universe_name: &String) -> ExternalSaveLoadReturnValue {
         self.time().save(new_universe_name);
         self.station().save(new_universe_name);
         ExternalSaveLoadReturnValue::UniverseIsSaved
@@ -113,8 +114,8 @@ pub fn load_or_create_universe(universe_name: String) -> MyLittleUniverse {
     return if Path::new(&save_file_path).is_dir() {
         load_universe(universe_name)
     } else {
-        MyLittleUniverse::new(universe_name.clone(), TimeStackState::new(), StationState::test_station())
-    }
+        generate_simple_universe(universe_name)
+    };
 }
 
 #[cfg(test)]
@@ -126,6 +127,7 @@ mod tests_int {
     use crate::save_load::{load_or_create_universe, load_station, load_time, load_universe};
     use crate::station::StationState;
     use crate::time::TimeStackState;
+    use crate::universe_generator::generate_simple_universe;
 
     #[test]
     fn save_load_time() {
@@ -151,7 +153,7 @@ mod tests_int {
 
     #[test]
     fn save_load_universe() {
-        let universe = my_little_universe::MyLittleUniverse::new("save_load_universe".to_string(), TimeStackState::new(), StationState::test_station());
+        let universe = generate_simple_universe("save_load_universe".to_string());
         universe.save();
         let loaded_universe = load_universe(universe.universe_name().to_string());
         assert_eq!(universe.universe_name(), loaded_universe.universe_name());

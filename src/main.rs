@@ -19,6 +19,7 @@ mod station;
 mod external_commands;
 mod save_load;
 mod my_little_universe;
+mod universe_generator;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct MainConfig {

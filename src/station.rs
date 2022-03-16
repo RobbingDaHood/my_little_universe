@@ -89,7 +89,6 @@ impl Production {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct StationState {
     name: String,
-    station_type: String,
     production: Production,
     event_stack: Vec<StationEventType>,
 }
@@ -97,9 +96,6 @@ pub struct StationState {
 impl StationState {
     pub fn name(&self) -> &str {
         &self.name
-    }
-    pub fn station_type(&self) -> &str {
-        &self.station_type
     }
     pub fn production(&self) -> &Production {
         &self.production
@@ -113,7 +109,6 @@ impl StationState {
     pub fn test_station() -> Self {
         StationState {
             name: "The digger".to_string(),
-            station_type: "Human ore mine".to_string(),
             production: Production
             {
                 input: vec![Amount {
@@ -408,7 +403,6 @@ mod tests_int {
     fn make_mining_station() -> StationState {
         StationState {
             name: "The digger".to_string(),
-            station_type: "Human ore mine".to_string(),
             production: Production
             {
                 input: vec![Amount {

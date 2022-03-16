@@ -4,16 +4,16 @@ use crate::station::{InternalStationEventType, StationEvenReturnType, StationEve
 use crate::time::{InternalTimeEventType, TimeEventReturnType, TimeEventType, TimeStackState};
 
 pub struct MyLittleUniverse {
-    pub time: TimeStackState,
-    pub station: StationState,
-    pub universe_name: String,
+    time: TimeStackState,
+    constructs: StationState,
+    universe_name: String,
 }
 
 impl MyLittleUniverse {
     pub fn new(universe_name: String, time: TimeStackState, station: StationState) -> Self {
         MyLittleUniverse {
             time: time,
-            station: station,
+            constructs: station,
             universe_name,
         }
     }
@@ -23,7 +23,7 @@ impl MyLittleUniverse {
     }
 
     pub fn station(&self) -> &StationState {
-        &self.station
+        &self.constructs
     }
     pub fn universe_name(&self) -> &str {
         &self.universe_name
@@ -36,7 +36,7 @@ impl MyLittleUniverse {
                 ExternalCommandReturnValues::Time(return_type)
             }
             ExternalCommands::Station(station_event) => {
-                let return_type = self.station.push_event(&StationEventType::External(station_event));
+                let return_type = self.constructs.push_event(&StationEventType::External(station_event));
                 ExternalCommandReturnValues::Station(return_type)
             }
             ExternalCommands::Save(save_event) => {
@@ -54,7 +54,7 @@ impl MyLittleUniverse {
 
     pub fn request_execute_turn(&mut self) {
         if self.time.request_execute_turn() {
-            self.station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn));
+            self.constructs.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn));
             self.time.push_event(&TimeEventType::Internal(InternalTimeEventType::ReadyForNextTurn));
         }
     }

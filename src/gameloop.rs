@@ -242,7 +242,6 @@ mod tests_int {
             ExternalCommandReturnValues::Station(station_return) => {
                 match station_return {
                     StationState(station_state) => {
-                        assert_eq!("Human ore mine", station_state.station_type());
                         assert_eq!("The digger", station_state.name());
                         assert_eq!(1, station_state.event_stack().len());
 
