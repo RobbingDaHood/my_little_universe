@@ -10,7 +10,7 @@ use serde_json::json;
 use crate::station::Station;
 use crate::time::TimeStackState;
 use crate::my_little_universe::MyLittleUniverse;
-use crate::universe_generator::generate_simple_universe;
+use crate::universe_generator::{generate_performance_test_universe, generate_simple_universe};
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ExternalSaveLoad {

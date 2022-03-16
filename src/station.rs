@@ -23,7 +23,7 @@ pub enum StationEventType {
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum InternalStationEventType {
-    ExecuteTurn,
+    ExecuteTurn(u64),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -72,11 +72,10 @@ pub struct Production {
     input: Vec<Amount>,
     output: Vec<Amount>,
     production_time: u32,
-    production_progress: u32,
+    production_trigger_time: u64,
 }
 
 impl Production {
-
     pub fn input(&self) -> &Vec<Amount> {
         &self.input
     }
@@ -86,12 +85,12 @@ impl Production {
     pub fn production_time(&self) -> u32 {
         self.production_time
     }
-    pub fn production_progress(&self) -> u32 {
-        self.production_progress
+    pub fn production_trigger_time(&self) -> u64 {
+        self.production_trigger_time
     }
 
-    pub fn new(input: Vec<Amount>, output: Vec<Amount>, production_time: u32, production_progress: u32) -> Self {
-        Self { input, output, production_time, production_progress }
+    pub fn new(input: Vec<Amount>, output: Vec<Amount>, production_time: u32, production_trigger_time: u64) -> Self {
+        Self { input, output, production_time, production_trigger_time }
     }
 }
 
@@ -112,14 +111,11 @@ impl Station {
     pub fn event_stack(&self) -> &Vec<StationEventType> {
         &self.event_stack
     }
-}
-
-impl Station {
     pub fn new(name: String, production: Production) -> Self {
         Station {
             name,
             production,
-            event_stack: Vec::new()
+            event_stack: Vec::new(),
         }
     }
 
@@ -172,28 +168,22 @@ impl Station {
                 }
                 StationEvenReturnType::Denied(format!("Unloading request denied. This station does not produce {:?} and will not sell it.", &request.product))
             }
-            StationEventType::Internal(InternalStationEventType::ExecuteTurn) => {
-                self.next_turn();
+            StationEventType::Internal(InternalStationEventType::ExecuteTurn(current_turn)) => {
+                self.next_turn(&current_turn);
                 StationEvenReturnType::TurnExecuted
             }
         };
     }
 
-    fn next_turn(&mut self) {
-        let production_progress = self.production.production_progress;
-
-        if production_progress == 0 {
+    fn next_turn(&mut self, current_turn: &u64) {
+        if current_turn >= &self.production.production_trigger_time {
             if self.have_all_inputs() {
-                self.production.production_progress += 1;
                 self.subtract_all_inputs();
+                self.production.production_trigger_time = current_turn + self.production.production_time as u64;
             }
-        } else if production_progress == self.production.production_time {
-            if self.have_room_for_outputs() {
-                self.production.production_progress = 0;
+            if self.production.production_trigger_time > 0 && self.have_room_for_outputs() {
                 self.add_all_outputs();
             }
-        } else {
-            self.production.production_progress += 1;
         }
     }
 
@@ -295,21 +285,7 @@ mod tests_int {
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn)) {
-            StationEvenReturnType::TurnExecuted => {}
-            _ => assert!(false)
-        }
-
-        match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState { include_stack: true })) {
-            StationEvenReturnType::StationState(state) => {
-                assert_eq!(0, state.production.output.get(0).unwrap().current_storage);
-                assert_eq!(99, state.production.input.get(0).unwrap().current_storage);
-                assert_eq!(1, state.production.production_progress);
-            }
-            _ => assert!(false)
-        }
-
-        match station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn)) {
+        match station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn(1))) {
             StationEvenReturnType::TurnExecuted => {}
             _ => assert!(false)
         }
@@ -318,21 +294,21 @@ mod tests_int {
             StationEvenReturnType::StationState(state) => {
                 assert_eq!(2, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(99, state.production.input.get(0).unwrap().current_storage);
-                assert_eq!(0, state.production.production_progress);
+                assert_eq!(2, state.production.production_trigger_time);
             }
             _ => assert!(false)
         }
 
-        match station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn)) {
+        match station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn(2))) {
             StationEvenReturnType::TurnExecuted => {}
             _ => assert!(false)
         }
 
         match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState { include_stack: true })) {
             StationEvenReturnType::StationState(state) => {
-                assert_eq!(2, state.production.output.get(0).unwrap().current_storage);
+                assert_eq!(4, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(98, state.production.input.get(0).unwrap().current_storage);
-                assert_eq!(1, state.production.production_progress);
+                assert_eq!(3, state.production.production_trigger_time);
             }
             _ => assert!(false)
         }
@@ -347,9 +323,9 @@ mod tests_int {
 
         match station.push_event(&StationEventType::External(ExternalStationEventType::GetStationState { include_stack: true })) {
             StationEvenReturnType::StationState(state) => {
-                assert_eq!(0, state.production.output.get(0).unwrap().current_storage);
+                assert_eq!(2, state.production.output.get(0).unwrap().current_storage);
                 assert_eq!(98, state.production.input.get(0).unwrap().current_storage);
-                assert_eq!(1, state.production.production_progress);
+                assert_eq!(3, state.production.production_trigger_time);
             }
             _ => assert!(false)
         }
@@ -376,11 +352,11 @@ mod tests_int {
             StationEvenReturnType::StationState(_) => {}
             _ => assert!(false)
         }
-        match station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn)) {
+        match station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn(0))) {
             StationEvenReturnType::TurnExecuted => {}
             _ => assert!(false)
         }
-        match station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn)) {
+        match station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn(0))) {
             StationEvenReturnType::TurnExecuted => {}
             _ => assert!(false)
         }
@@ -411,7 +387,7 @@ mod tests_int {
                     max_storage: 20000,
                 }],
                 production_time: 1,
-                production_progress: 0,
+                production_trigger_time: 0,
             },
             event_stack: Vec::new(),
         }

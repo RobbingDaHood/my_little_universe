@@ -107,11 +107,17 @@ fn handle_request(main_to_universe_sender: &Sender<ExternalCommands>, universe_t
                 }
                 _ => {}
             }
-
-            let return_values = universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap();
-
-            if let Err(e) = stream.write(format!("{} \n", json!(return_values)).as_bytes()) {
-                panic!("{}", e);
+            match universe_to_main_receiver.recv_timeout(Duration::from_secs(600)) {
+                Ok(return_values) => {
+                    if let Err(e) = stream.write(format!("{} \n", json!(return_values)).as_bytes()) {
+                        panic!("{}", e);
+                    }
+                }
+                Err(_) => {
+                    if let Err(e) = stream.write("Timed out".as_bytes()) {
+                        panic!("{}", e);
+                    }
+                }
             }
         }
     }

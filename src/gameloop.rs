@@ -197,22 +197,22 @@ mod tests_int {
         send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(2)));
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 2);
-        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 199, 0, 1);
+        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 199, 2, 3);
 
         send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(3)));
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 3);
-        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 199, 2, 0);
+        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 198, 4, 4);
 
         send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(10)));
 
         thread::sleep(Duration::from_secs(1));
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 10);
-        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 195, 8, 1);
+        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 191, 18, 11);
 
         send_request_to_station(&main_to_universe_sender, &universe_to_main_receiver, ExternalStationEventType::RequestUnload(LoadingRequest::new(Product::Ores, 8)));
-        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 195, 0, 1);
+        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 191, 10, 11);
     }
 
     fn send_request_to_station(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: ExternalStationEventType) {
@@ -246,7 +246,7 @@ mod tests_int {
                         assert_eq!(1, station_state.event_stack().len());
 
                         assert_eq!(1, station_state.production().production_time());
-                        assert_eq!(0, station_state.production().production_progress());
+                        assert_eq!(0, station_state.production().production_trigger_time());
 
                         assert_eq!(1, station_state.production().input().get(0).unwrap().amount());
                         assert_eq!(0, station_state.production().input().get(0).unwrap().current_storage());
@@ -265,7 +265,7 @@ mod tests_int {
         }
     }
 
-    fn check_station_state(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, expected_first_input_current_storage: u32, expected_first_output_current_storage: u32, expected_production_progress: u32) {
+    fn check_station_state(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, expected_first_input_current_storage: u32, expected_first_output_current_storage: u32, production_trigger_time: u64) {
         match main_to_universe_sender.send(ExternalCommands::Station("simple_station".to_string(),ExternalStationEventType::GetStationState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
@@ -277,7 +277,7 @@ mod tests_int {
                     StationState(station_state) => {
                         assert_eq!(expected_first_input_current_storage, station_state.production().input().get(0).unwrap().current_storage());
                         assert_eq!(expected_first_output_current_storage, station_state.production().output().get(0).unwrap().current_storage());
-                        assert_eq!(expected_production_progress, station_state.production().production_progress());
+                        assert_eq!(production_trigger_time, station_state.production().production_trigger_time());
                     }
                     _ => assert!(false)
                 }

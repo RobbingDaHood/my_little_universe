@@ -28,3 +28,32 @@ pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
 
     MyLittleUniverse::new(universe_name, TimeStackState::new(), stations)
 }
+
+
+pub fn generate_performance_test_universe(universe_name: String) -> MyLittleUniverse {
+    let mut stations : HashMap<String, Station> = HashMap::new();
+
+    for i in 1..9999999 {
+        let station = Station::new(format!("simple_station_{}", i), Production::new(
+            vec![Amount::new(
+                Product::PowerCells,
+                1,
+                10000,
+                10000,
+            )],
+            vec![Amount::new(
+                Product::Ores,
+                2,
+                0,
+                20000,
+            )],
+            1,
+            0,
+        ));
+
+        stations.insert(station.name().to_string(), station);
+    }
+
+
+    MyLittleUniverse::new(universe_name, TimeStackState::new(), stations)
+}

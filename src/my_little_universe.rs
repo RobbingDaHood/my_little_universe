@@ -67,7 +67,7 @@ impl MyLittleUniverse {
     pub fn request_execute_turn(&mut self) {
         if self.time.request_execute_turn() {
             for construct in self.constructs.values_mut() {
-                construct.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn));
+                construct.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn(self.time.turn())));
             }
             self.time.push_event(&TimeEventType::Internal(InternalTimeEventType::ReadyForNextTurn));
         }
