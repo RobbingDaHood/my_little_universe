@@ -1,4 +1,4 @@
-use crate::ExternalCommands::Time;
+use std::collections::HashMap;
 use crate::my_little_universe::MyLittleUniverse;
 use crate::products::Product;
 use crate::station::StationEvenReturnType::StationState;
@@ -23,5 +23,8 @@ pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
         0,
     ));
 
-    MyLittleUniverse::new(universe_name, TimeStackState::new(), station)
+    let mut stations : HashMap<String, Station> = HashMap::new();
+    stations.insert(station.name().to_string(), station);
+
+    MyLittleUniverse::new(universe_name, TimeStackState::new(), stations)
 }

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::fs::{create_dir_all, File};
 use std::io::{Read, Write};
@@ -74,12 +75,16 @@ fn load_station(universe_name: &String, station_name: &String) -> Station {
 impl MyLittleUniverse {
     pub fn save(&self) -> ExternalSaveLoadReturnValue {
         self.time().save(&self.universe_name().to_string());
-        self.station().save(&self.universe_name().to_string());
+        for construct in self.constructs().values() {
+            construct.save(&self.universe_name().to_string());
+        }
         ExternalSaveLoadReturnValue::UniverseIsSaved
     }
     pub fn save_as(&self, new_universe_name: &String) -> ExternalSaveLoadReturnValue {
         self.time().save(new_universe_name);
-        self.station().save(new_universe_name);
+        for construct in self.constructs().values() {
+            construct.save(&self.universe_name().to_string());
+        }
         ExternalSaveLoadReturnValue::UniverseIsSaved
     }
 }
@@ -87,7 +92,7 @@ impl MyLittleUniverse {
 pub fn load_universe(universe_name: String) -> MyLittleUniverse {
     let time = load_time(&universe_name);
 
-    let mut stations = Vec::new();
+    let mut stations : HashMap<String, Station> = HashMap::new();
     let station_dir = format!("./save/{}/stations/", universe_name);
     for station_file in fs::read_dir(&station_dir)
         .expect(format!("failed to list files in station, got: {}", &station_dir).as_str()) {
@@ -95,7 +100,8 @@ pub fn load_universe(universe_name: String) -> MyLittleUniverse {
             Ok(file) => {
                 let station_save_file = file.file_name().to_str().expect("Failed to get path to station save file").to_string();
                 let station_save_file_without_type = station_save_file.split(".").next().expect(&format!("Failed getting filename for station, {:?}", station_save_file)).to_string();
-                stations.push(load_station(&universe_name, &station_save_file_without_type));
+                let station = load_station(&universe_name, &station_save_file_without_type);
+                stations.insert(station.name().to_string(), station);
             }
             Err(e) => { panic!("Were not able to load {:?}, got this error: {}", &station_file, e) }
         }
@@ -105,7 +111,7 @@ pub fn load_universe(universe_name: String) -> MyLittleUniverse {
         println!("No stations were loaded, that is likely a mistake. Tried loadi")
     }
 
-    MyLittleUniverse::new(universe_name.clone(), time, stations.get(0).unwrap().clone())
+    MyLittleUniverse::new(universe_name.clone(), time, stations)
 }
 
 pub fn load_or_create_universe(universe_name: String) -> MyLittleUniverse {
@@ -158,7 +164,8 @@ mod tests_int {
             )],
             1,
             0,
-        ));;
+        ));
+        ;
         station.save(&"save_load_station".to_string());
         let loaded_state = load_station(&"save_load_station".to_string(), &station.name().to_string());
         assert_eq!(station, loaded_state);
@@ -174,7 +181,7 @@ mod tests_int {
         let loaded_universe = load_universe(universe.universe_name().to_string());
         assert_eq!(universe.universe_name(), loaded_universe.universe_name());
         assert_eq!(universe.time(), loaded_universe.time());
-        assert_eq!(universe.station(), loaded_universe.station());
+        assert_eq!(universe.constructs(), loaded_universe.constructs());
 
         //Cleanup
         fs::remove_dir_all("./save/save_load_universe/").expect("Had trouble cleanup after save_load_time");

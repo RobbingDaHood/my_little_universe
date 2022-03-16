@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use crate::my_little_universe::MyLittleUniverseReturnValues;
 
 use crate::products::Product;
 use crate::save_load::{ExternalSaveLoad, ExternalSaveLoadReturnValue};
@@ -8,7 +9,7 @@ use crate::time::{ExternalTimeEventType, TimeEventReturnType};
 #[derive(Clone, PartialEq, Debug)]
 pub enum ExternalCommands {
     Time(ExternalTimeEventType),
-    Station(ExternalStationEventType),
+    Station(String, ExternalStationEventType),
     Save(ExternalSaveLoad),
 }
 
@@ -17,6 +18,7 @@ pub enum ExternalCommandReturnValues {
     Time(TimeEventReturnType),
     Station(StationEvenReturnType),
     Save(ExternalSaveLoadReturnValue),
+    Universe(MyLittleUniverseReturnValues)
 }
 
 impl TryFrom<&String> for ExternalCommands {
@@ -78,13 +80,16 @@ impl ExternalCommands {
     }
 
     fn parse_station(command_parts: Vec<&str>) -> Result<Self, String> {
-        if command_parts.len() < 2 {
-            return Err(format!("Station command needs at least the command name. Got {:?}", command_parts));
+        if command_parts.len() < 3 {
+            return Err(format!("Station command needs at least the station name and command name. Got {:?}", command_parts));
         }
-        match command_parts[1] {
+
+        let station_name = command_parts[1];
+
+        match command_parts[2] {
             "RequestLoad" => {
-                if command_parts.len() > 3 {
-                    let product = match command_parts[2] {
+                if command_parts.len() > 4 {
+                    let product = match command_parts[3] {
                         "Ores" => { Some(Product::Ores) }
                         "Metals" => { Some(Product::Metals) }
                         "PowerCells" => { Some(Product::PowerCells) }
@@ -92,16 +97,16 @@ impl ExternalCommands {
                     };
 
                     if let Some(product_value) = product {
-                        if let Ok(amount) = command_parts[3].parse::<u32>() {
-                            return Ok(ExternalCommands::Station(ExternalStationEventType::RequestLoad(LoadingRequest::new(product_value, amount))));
+                        if let Ok(amount) = command_parts[4].parse::<u32>() {
+                            return Ok(ExternalCommands::Station(station_name.to_string(), ExternalStationEventType::RequestLoad(LoadingRequest::new(product_value, amount))));
                         }
                     }
                 }
                 return Err(format!("RequestLoad need Product and u32 amount. Got {:?}", command_parts));
             }
             "RequestUnload" => {
-                if command_parts.len() > 3 {
-                    let product = match command_parts[2] {
+                if command_parts.len() > 4 {
+                    let product = match command_parts[3] {
                         "Ores" => { Some(Product::Ores) }
                         "Metals" => { Some(Product::Metals) }
                         "PowerCells" => { Some(Product::PowerCells) }
@@ -109,20 +114,20 @@ impl ExternalCommands {
                     };
 
                     if let Some(product_value) = product {
-                        if let Ok(amount) = command_parts[3].parse::<u32>() {
-                            return Ok(ExternalCommands::Station(ExternalStationEventType::RequestUnload(LoadingRequest::new(product_value, amount))));
+                        if let Ok(amount) = command_parts[4].parse::<u32>() {
+                            return Ok(ExternalCommands::Station(station_name.to_string(), ExternalStationEventType::RequestUnload(LoadingRequest::new(product_value, amount))));
                         }
                     }
                 }
                 return Err(format!("RequestUnload need Product and u32 amount. Got {:?}", command_parts));
             }
             "GetStationState" => {
-                if command_parts.len() > 2 {
-                    if let Ok(include_stack) = command_parts[2].parse::<bool>() {
-                        return Ok(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack }));
+                if command_parts.len() > 3 {
+                    if let Ok(include_stack) = command_parts[3].parse::<bool>() {
+                        return Ok(ExternalCommands::Station(station_name.to_string(), ExternalStationEventType::GetStationState { include_stack }));
                     }
                 } else {
-                    return Ok(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: true }));
+                    return Ok(ExternalCommands::Station(station_name.to_string(), ExternalStationEventType::GetStationState { include_stack: true }));
                 }
                 return Err(format!("GetStationState optinal booĺ include_stack. Got {:?}", command_parts));
             }
@@ -171,12 +176,12 @@ mod tests_int {
                    ExternalCommands::try_from(&"Time GetTimeStackState".to_string()).unwrap());
 
 
-        assert_eq!(ExternalCommands::Station(ExternalStationEventType::RequestLoad(LoadingRequest::new(Product::PowerCells, 24))),
-                   ExternalCommands::try_from(&"Station RequestLoad PowerCells 24".to_string()).unwrap());
-        assert_eq!(ExternalCommands::Station(ExternalStationEventType::RequestUnload(LoadingRequest::new(Product::Ores, 25))),
-                   ExternalCommands::try_from(&"Station RequestUnload Ores 25".to_string()).unwrap());
-        assert_eq!(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: true }),
-                   ExternalCommands::try_from(&"Station GetStationState".to_string()).unwrap());
+        assert_eq!(ExternalCommands::Station("name".to_string(), ExternalStationEventType::RequestLoad(LoadingRequest::new(Product::PowerCells, 24))),
+                   ExternalCommands::try_from(&"Station name RequestLoad PowerCells 24".to_string()).unwrap());
+        assert_eq!(ExternalCommands::Station("name".to_string(), ExternalStationEventType::RequestUnload(LoadingRequest::new(Product::Ores, 25))),
+                   ExternalCommands::try_from(&"Station name RequestUnload Ores 25".to_string()).unwrap());
+        assert_eq!(ExternalCommands::Station("name".to_string(), ExternalStationEventType::GetStationState { include_stack: true }),
+                   ExternalCommands::try_from(&"Station name GetStationState".to_string()).unwrap());
 
         assert_eq!(ExternalCommands::Save(ExternalSaveLoad::SaveTheUniverse),
                    ExternalCommands::try_from(&"Save SaveTheUniverse".to_string()).unwrap());

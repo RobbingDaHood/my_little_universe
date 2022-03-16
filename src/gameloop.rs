@@ -216,7 +216,7 @@ mod tests_int {
     }
 
     fn send_request_to_station(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: ExternalStationEventType) {
-        match main_to_universe_sender.send(ExternalCommands::Station(request)) {
+        match main_to_universe_sender.send(ExternalCommands::Station("simple_station".to_string(),request)) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
         }
@@ -233,7 +233,7 @@ mod tests_int {
     }
 
     fn verify_initial_state_of_station(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>) {
-        match main_to_universe_sender.send(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: true })) {
+        match main_to_universe_sender.send(ExternalCommands::Station("simple_station".to_string(),ExternalStationEventType::GetStationState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
         }
@@ -266,7 +266,7 @@ mod tests_int {
     }
 
     fn check_station_state(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, expected_first_input_current_storage: u32, expected_first_output_current_storage: u32, expected_production_progress: u32) {
-        match main_to_universe_sender.send(ExternalCommands::Station(ExternalStationEventType::GetStationState { include_stack: true })) {
+        match main_to_universe_sender.send(ExternalCommands::Station("simple_station".to_string(),ExternalStationEventType::GetStationState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
         }

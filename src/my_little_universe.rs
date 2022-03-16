@@ -1,19 +1,26 @@
+use std::collections::HashMap;
 use crate::{Channel, ExternalCommandReturnValues, ExternalCommands};
 use crate::save_load::ExternalSaveLoad;
 use crate::station::{InternalStationEventType, StationEvenReturnType, StationEventType, Station};
 use crate::time::{InternalTimeEventType, TimeEventReturnType, TimeEventType, TimeStackState};
+use serde::{Deserialize, Serialize};
 
 pub struct MyLittleUniverse {
     time: TimeStackState,
-    constructs: Station,
+    constructs: HashMap<String, Station>,
     universe_name: String,
 }
 
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum MyLittleUniverseReturnValues {
+    CouldNotFindStation
+}
+
 impl MyLittleUniverse {
-    pub fn new(universe_name: String, time: TimeStackState, station: Station) -> Self {
+    pub fn new(universe_name: String, time: TimeStackState, constructs: HashMap<String, Station>) -> Self {
         MyLittleUniverse {
             time: time,
-            constructs: station,
+            constructs,
             universe_name,
         }
     }
@@ -22,7 +29,7 @@ impl MyLittleUniverse {
         &self.time
     }
 
-    pub fn station(&self) -> &Station {
+    pub fn constructs(&self) -> &HashMap<String, Station> {
         &self.constructs
     }
     pub fn universe_name(&self) -> &str {
@@ -35,9 +42,14 @@ impl MyLittleUniverse {
                 let return_type = self.time.push_event(&TimeEventType::External(time_event));
                 ExternalCommandReturnValues::Time(return_type)
             }
-            ExternalCommands::Station(station_event) => {
-                let return_type = self.constructs.push_event(&StationEventType::External(station_event));
-                ExternalCommandReturnValues::Station(return_type)
+            ExternalCommands::Station(station_name, station_event) => {
+                return match self.constructs.get_mut(&station_name) {
+                    Some(construct) => {
+                        let return_type = construct.push_event(&StationEventType::External(station_event));
+                        ExternalCommandReturnValues::Station(return_type)
+                    }
+                    None => { ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindStation) }
+                };
             }
             ExternalCommands::Save(save_event) => {
                 match save_event {
@@ -54,7 +66,9 @@ impl MyLittleUniverse {
 
     pub fn request_execute_turn(&mut self) {
         if self.time.request_execute_turn() {
-            self.constructs.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn));
+            for construct in self.constructs.values_mut() {
+                construct.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn));
+            }
             self.time.push_event(&TimeEventType::Internal(InternalTimeEventType::ReadyForNextTurn));
         }
     }
