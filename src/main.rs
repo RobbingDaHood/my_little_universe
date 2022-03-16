@@ -18,6 +18,8 @@ mod products;
 mod station;
 mod external_commands;
 mod save_load;
+mod sector;
+mod my_little_universe;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct MainConfig {
@@ -61,9 +63,9 @@ fn read_main_config_file() -> (MainConfig, String) {
     };
 
     let config_folder = "./config/".to_string().add(config_name);
-    println!("Using main config folder: {}", config_folder);
 
-    let main_config_path = config_folder.to_string().add("main.json");
+    let main_config_path = config_folder.to_string().add("/main.json");
+    println!("Using main config main_config_path: {}", main_config_path);
 
     let main_setup_config = fs::read_to_string(main_config_path)
         .expect("Something went wrong reading the file");

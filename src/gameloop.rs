@@ -7,82 +7,28 @@ use crate::save_load::{ExternalSaveLoad, load_or_create_universe};
 use crate::station::{InternalStationEventType, StationEventType, StationState};
 use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
-pub struct MyLittleUniverse {
-    time: TimeStackState,
-    channels: Vec<Channel>,
-    station: StationState,
-    universe_name: String,
-}
-
-impl MyLittleUniverse {
-    pub fn new(universe_name: String, time: TimeStackState, station: StationState) -> Self {
-        MyLittleUniverse {
-            time: time,
-            channels: Vec::new(),
-            station: station,
-            universe_name,
-        }
-    }
-
-    pub fn time(&self) -> &TimeStackState {
-        &self.time
-    }
-
-    pub fn station(&self) -> &StationState {
-        &self.station
-    }
-
-
-    pub fn universe_name(&self) -> &str {
-        &self.universe_name
-    }
-}
-
 // channel_getter is one channel to receive new channels.
 // Then the loop will listen for events from that channel to execute.
 fn game_loop(channel_getter: Receiver<Channel>, universe_name: String) {
     thread::spawn(move || {
         let mut universe = load_or_create_universe(universe_name);
-        println!("Loaded universe with name {}", universe.universe_name);
+        println!("Loaded universe with name {}", universe.universe_name());
+        let mut channels = Vec::new();
 
         loop {
             for channel in channel_getter.try_recv() {
-                universe.channels.push(channel);
+                channels.push(channel);
             }
 
-            for channel in &universe.channels {
+            for channel in &channels {
                 for event in channel.getter.try_recv() {
-                    match event {
-                        ExternalCommands::Time(time_event) => {
-                            let return_type = universe.time.push_event(&TimeEventType::External(time_event));
-                            let return_event = ExternalCommandReturnValues::Time(return_type);
-                            channel.returner.send(return_event).expect("Failed sending event in gameloop.")
-                        }
-                        ExternalCommands::Station(station_event) => {
-                            let return_type = universe.station.push_event(&StationEventType::External(station_event));
-                            let return_event = ExternalCommandReturnValues::Station(return_type);
-                            channel.returner.send(return_event).expect("Failed sending event in gameloop.")
-                        }
-                        ExternalCommands::Save(save_event) => {
-                            match save_event {
-                                ExternalSaveLoad::SaveTheUniverseAs(universe_name) => {
-                                    channel.returner.send(ExternalCommandReturnValues::Save(universe.save_as(&universe_name)))
-                                        .expect("Failed to save the universe");
-                                }
-                                ExternalSaveLoad::SaveTheUniverse => {
-                                    channel.returner.send(ExternalCommandReturnValues::Save(universe.save()))
-                                        .expect("Failed to save the universe");
-                                }
-                            }
-                        }
-                    }
+                    channel.returner
+                        .send(universe.handle_event(event))
+                        .expect("Failed sending event in gameloop.")
                 }
             }
 
-            if universe.time.request_execute_turn() {
-                universe.station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn));
-                universe.time.push_event(&TimeEventType::Internal(InternalTimeEventType::ReadyForNextTurn));
-            }
+            universe.request_execute_turn();
 
             thread::sleep(time::Duration::from_millis(10))
         }

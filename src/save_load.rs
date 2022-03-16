@@ -6,9 +6,9 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::gameloop::MyLittleUniverse;
 use crate::station::StationState;
 use crate::time::TimeStackState;
+use crate::my_little_universe::MyLittleUniverse;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ExternalSaveLoad {
@@ -121,8 +121,8 @@ pub fn load_or_create_universe(universe_name: String) -> MyLittleUniverse {
 mod tests_int {
     use std::fs;
     use std::path::Path;
+    use crate::my_little_universe;
 
-    use crate::gameloop::MyLittleUniverse;
     use crate::save_load::{load_or_create_universe, load_station, load_time, load_universe};
     use crate::station::StationState;
     use crate::time::TimeStackState;
@@ -151,7 +151,7 @@ mod tests_int {
 
     #[test]
     fn save_load_universe() {
-        let universe = MyLittleUniverse::new("save_load_universe".to_string(), TimeStackState::new(), StationState::test_station());
+        let universe = my_little_universe::MyLittleUniverse::new("save_load_universe".to_string(), TimeStackState::new(), StationState::test_station());
         universe.save();
         let loaded_universe = load_universe(universe.universe_name().to_string());
         assert_eq!(universe.universe_name(), loaded_universe.universe_name());

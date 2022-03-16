@@ -71,7 +71,7 @@ impl ExternalCommands {
                 } else {
                     return Ok(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState { include_stack: true }));
                 }
-                return Err(format!("GetStationState optinal booĺ include_stack. Got {:?}", command_parts));
+                return Err(format!("GetTimeStackState optinal booĺ include_stack. Got {:?}", command_parts));
             }
             _ => Err(format!("Unknown Time command. Got {:?}", command_parts))
         }
