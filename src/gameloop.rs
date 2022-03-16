@@ -4,7 +4,7 @@ use std::sync::mpsc::{Receiver, Sender};
 
 use crate::external_commands::{ExternalCommandReturnValues, ExternalCommands};
 use crate::save_load::{ExternalSaveLoad, load_or_create_universe};
-use crate::station::{InternalStationEventType, StationEventType, StationState};
+use crate::station::{InternalStationEventType, StationEventType, Station};
 use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
 // channel_getter is one channel to receive new channels.
@@ -242,7 +242,7 @@ mod tests_int {
             ExternalCommandReturnValues::Station(station_return) => {
                 match station_return {
                     StationState(station_state) => {
-                        assert_eq!("The digger", station_state.name());
+                        assert_eq!("simple_station", station_state.name());
                         assert_eq!(1, station_state.event_stack().len());
 
                         assert_eq!(1, station_state.production().production_time());

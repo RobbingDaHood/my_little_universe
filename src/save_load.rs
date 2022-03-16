@@ -6,7 +6,7 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use crate::station::StationState;
+use crate::station::Station;
 use crate::time::TimeStackState;
 use crate::my_little_universe::MyLittleUniverse;
 use crate::universe_generator::generate_simple_universe;
@@ -48,7 +48,7 @@ fn save_file_path(universe_name: &String) -> String {
     path
 }
 
-impl StationState {
+impl Station {
     pub fn save(&self, universe_name: &String) {
         let universe_folder = save_file_path(&universe_name);
         let file_path = format!("{}{}", universe_folder, "stations/");
@@ -61,7 +61,7 @@ impl StationState {
     }
 }
 
-fn load_station(universe_name: &String, station_name: &String) -> StationState {
+fn load_station(universe_name: &String, station_name: &String) -> Station {
     let file_path = format!("{}{}{}.json", save_file_path(&universe_name), "stations/", &station_name);
     let mut file = File::open(&file_path)
         .expect(&format!("Filed to open station save file, got {}", &file_path));
@@ -123,9 +123,10 @@ mod tests_int {
     use std::fs;
     use std::path::Path;
     use crate::my_little_universe;
+    use crate::products::Product;
 
     use crate::save_load::{load_or_create_universe, load_station, load_time, load_universe};
-    use crate::station::StationState;
+    use crate::station::{Amount, Production, Station};
     use crate::time::TimeStackState;
     use crate::universe_generator::generate_simple_universe;
 
@@ -142,7 +143,22 @@ mod tests_int {
 
     #[test]
     fn save_load_station() {
-        let station = StationState::test_station();
+        let station = Station::new("simple_station".to_string(), Production::new(
+            vec![Amount::new(
+                Product::PowerCells,
+                1,
+                0,
+                10000,
+            )],
+            vec![Amount::new(
+                Product::Ores,
+                2,
+                0,
+                20000,
+            )],
+            1,
+            0,
+        ));;
         station.save(&"save_load_station".to_string());
         let loaded_state = load_station(&"save_load_station".to_string(), &station.name().to_string());
         assert_eq!(station, loaded_state);

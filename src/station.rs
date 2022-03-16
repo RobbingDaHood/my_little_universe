@@ -1,3 +1,4 @@
+use std::io::SeekFrom;
 use serde::{Deserialize, Serialize};
 
 use crate::products::Product;
@@ -36,7 +37,7 @@ pub enum ExternalStationEventType {
 pub enum StationEvenReturnType {
     Denied(String),
     Approved,
-    StationState(StationState),
+    StationState(Station),
     TurnExecuted,
 }
 
@@ -61,6 +62,9 @@ impl Amount {
     pub fn max_storage(&self) -> u32 {
         self.max_storage
     }
+    pub fn new(product: Product, amount: u32, current_storage: u32, max_storage: u32) -> Self {
+        Self { product, amount, current_storage, max_storage }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -72,6 +76,7 @@ pub struct Production {
 }
 
 impl Production {
+
     pub fn input(&self) -> &Vec<Amount> {
         &self.input
     }
@@ -84,16 +89,20 @@ impl Production {
     pub fn production_progress(&self) -> u32 {
         self.production_progress
     }
+
+    pub fn new(input: Vec<Amount>, output: Vec<Amount>, production_time: u32, production_progress: u32) -> Self {
+        Self { input, output, production_time, production_progress }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct StationState {
+pub struct Station {
     name: String,
     production: Production,
     event_stack: Vec<StationEventType>,
 }
 
-impl StationState {
+impl Station {
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -105,28 +114,12 @@ impl StationState {
     }
 }
 
-impl StationState {
-    pub fn test_station() -> Self {
-        StationState {
-            name: "The digger".to_string(),
-            production: Production
-            {
-                input: vec![Amount {
-                    product: Product::PowerCells,
-                    amount: 1,
-                    current_storage: 0,
-                    max_storage: 10000,
-                }],
-                output: vec![Amount {
-                    product: Product::Ores,
-                    amount: 2,
-                    current_storage: 0,
-                    max_storage: 20000,
-                }],
-                production_time: 1,
-                production_progress: 0,
-            },
-            event_stack: Vec::new(),
+impl Station {
+    pub fn new(name: String, production: Production) -> Self {
+        Station {
+            name,
+            production,
+            event_stack: Vec::new()
         }
     }
 
@@ -241,7 +234,7 @@ mod tests_int {
     use serde_json::json;
 
     use crate::products::Product;
-    use crate::station::{Amount, ExternalStationEventType, InternalStationEventType, LoadingRequest, Production, StationEvenReturnType, StationEventType, StationState};
+    use crate::station::{Amount, ExternalStationEventType, InternalStationEventType, LoadingRequest, Production, StationEvenReturnType, StationEventType, Station};
 
     #[test]
     fn request_unload_wrong_product() {
@@ -371,7 +364,7 @@ mod tests_int {
         assert_eq!(station, and_back);
     }
 
-    fn execute_all_events(station: &mut StationState) {
+    fn execute_all_events(station: &mut Station) {
         match station.push_event(&StationEventType::External(ExternalStationEventType::RequestLoad(LoadingRequest {
             product: Product::PowerCells,
             amount: 2,
@@ -400,8 +393,8 @@ mod tests_int {
         }
     }
 
-    fn make_mining_station() -> StationState {
-        StationState {
+    fn make_mining_station() -> Station {
+        Station {
             name: "The digger".to_string(),
             production: Production
             {

@@ -1,16 +1,16 @@
 use crate::{Channel, ExternalCommandReturnValues, ExternalCommands};
 use crate::save_load::ExternalSaveLoad;
-use crate::station::{InternalStationEventType, StationEvenReturnType, StationEventType, StationState};
+use crate::station::{InternalStationEventType, StationEvenReturnType, StationEventType, Station};
 use crate::time::{InternalTimeEventType, TimeEventReturnType, TimeEventType, TimeStackState};
 
 pub struct MyLittleUniverse {
     time: TimeStackState,
-    constructs: StationState,
+    constructs: Station,
     universe_name: String,
 }
 
 impl MyLittleUniverse {
-    pub fn new(universe_name: String, time: TimeStackState, station: StationState) -> Self {
+    pub fn new(universe_name: String, time: TimeStackState, station: Station) -> Self {
         MyLittleUniverse {
             time: time,
             constructs: station,
@@ -22,7 +22,7 @@ impl MyLittleUniverse {
         &self.time
     }
 
-    pub fn station(&self) -> &StationState {
+    pub fn station(&self) -> &Station {
         &self.constructs
     }
     pub fn universe_name(&self) -> &str {
