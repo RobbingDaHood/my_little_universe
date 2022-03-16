@@ -43,6 +43,7 @@ impl MyLittleUniverse {
 fn game_loop(channel_getter: Receiver<Channel>, universe_name: String) {
     thread::spawn(move || {
         let mut universe = load_or_create_universe(universe_name);
+        println!("Loaded universe with name {}", universe.universe_name);
 
         loop {
             for channel in channel_getter.try_recv() {
