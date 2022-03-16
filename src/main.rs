@@ -18,7 +18,6 @@ mod products;
 mod station;
 mod external_commands;
 mod save_load;
-mod sector;
 mod my_little_universe;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
