@@ -1,5 +1,6 @@
 use std::io::SeekFrom;
 use serde::{Deserialize, Serialize};
+use crate::construct_module::CanHandleNextTurn;
 
 use crate::products::Product;
 
@@ -175,19 +176,6 @@ impl Station {
         };
     }
 
-    fn next_turn(&mut self, current_turn: &u64) {
-        if current_turn >= &self.production.production_trigger_time {
-            if self.have_all_inputs() {
-                self.subtract_all_inputs();
-                self.production.production_trigger_time = current_turn + self.production.production_time as u64;
-            }
-            if self.production.production_trigger_time > 0 && self.have_room_for_outputs() {
-                self.add_all_outputs();
-            }
-        }
-    }
-
-
     fn have_all_inputs(&mut self) -> bool {
         for input in &self.production.input {
             if input.current_storage < input.amount {
@@ -215,6 +203,20 @@ impl Station {
     fn add_all_outputs(&mut self) {
         for mut output in &mut self.production.output {
             output.current_storage += output.amount;
+        }
+    }
+}
+
+impl CanHandleNextTurn for Station {
+    fn next_turn(&mut self, current_turn: &u64) {
+        if current_turn >= &self.production.production_trigger_time {
+            if self.have_all_inputs() {
+                self.subtract_all_inputs();
+                self.production.production_trigger_time = current_turn + self.production.production_time as u64;
+            }
+            if self.production.production_trigger_time > 0 && self.have_room_for_outputs() {
+                self.add_all_outputs();
+            }
         }
     }
 }
