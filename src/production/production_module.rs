@@ -1,3 +1,4 @@
+use std::cmp;
 use std::collections::HashMap;
 use crate::construct_module::CanHandleNextTurn;
 use crate::production::single_product_storage::SingleProductStorageModule;
@@ -13,11 +14,15 @@ pub struct ProductionModule {
 }
 
 impl ProductionModule {
-    fn have_all_inputs(&mut self, possible_storage: &HashMap<String, SingleProductStorageModule>) -> bool {
+    fn have_all_inputs(&mut self, possible_storage: &HashMap<Product, Vec<SingleProductStorageModule>>) -> bool {
         for input in &self.input {
-            match possible_storage.get(input.connected_storage_name()) {
-                Some(connected_storage) => {
-                    if input.amount > connected_storage.current_storage() {
+            match possible_storage.get(input.product()) {
+                Some(connected_storages) => {
+                    let mut total_capacity = 0;
+                    for connected_storage in connected_storages {
+                        total_capacity += connected_storage.current_storage();
+                    }
+                    if input.amount > total_capacity {
                         return false;
                     }
                 }
@@ -29,11 +34,11 @@ impl ProductionModule {
         return true;
     }
 
-    fn subtract_all_inputs(&mut self, possible_storage: &mut HashMap<String, SingleProductStorageModule>) {
+    fn subtract_all_inputs(&mut self, possible_storage: &mut HashMap<Product, Vec<SingleProductStorageModule>>) {
         for mut input in &mut self.input {
-            match possible_storage.get_mut(input.connected_storage_name()) {
-                Some(connected_storage) => {
-                    connected_storage.reduce_current_storage(input.amount);
+            match possible_storage.get_mut(input.product()) {
+                Some(connected_storages) => {
+                    Self::substract_input(&mut input, connected_storages);
                 }
                 None => {
                     panic!("Tried to reduce_current_storage on a non existing storage")
@@ -42,31 +47,62 @@ impl ProductionModule {
         }
     }
 
-    fn have_room_for_outputs(&mut self, possible_storage: &HashMap<String, SingleProductStorageModule>) -> bool {
+    fn substract_input(input: &mut &mut Amount, connected_storages: &mut Vec<SingleProductStorageModule>) {
+        let mut missing_stored_amount = input.amount;
+        for connected_storage in connected_storages {
+            let capacity = cmp::min(connected_storage.current_storage(), missing_stored_amount);
+            connected_storage.reduce_current_storage(capacity);
+            missing_stored_amount -= capacity;
+
+            if missing_stored_amount == 0 {
+                break;
+            }
+        }
+    }
+
+    fn have_room_for_outputs(&mut self, possible_storage: &HashMap<Product, Vec<SingleProductStorageModule>>) -> bool {
         for output in &self.output {
-           match possible_storage.get(output.connected_storage_name()) {
-               Some(connected_storage) => {
-                   if connected_storage.current_storage() + output.amount > connected_storage.capacity() {
-                       return false;
-                   }
-               }
-               None => {
-                   return false;
-               }
-           }
+            match possible_storage.get(output.product()) {
+                Some(connected_storages) => {
+                    let mut total_capacity = 0;
+                    for connected_storage in connected_storages {
+                        total_capacity += connected_storage.capacity() - connected_storage.current_storage();
+                    }
+                    if output.amount > total_capacity {
+                        return false;
+                    }
+                }
+                None => {
+                    return false;
+                }
+            }
         }
         return true;
     }
 
-    fn add_all_outputs(&mut self, possible_storage: &mut HashMap<String, SingleProductStorageModule>) {
+    fn add_all_outputs(&mut self, possible_storage: &mut HashMap<Product, Vec<SingleProductStorageModule>>) {
         for mut output in &mut self.output {
-            match possible_storage.get_mut(output.connected_storage_name()) {
-                Some(connected_storage) => {
-                    connected_storage.increase_current_storage(output.amount);
+            match possible_storage.get_mut(output.product()) {
+                Some(connected_storages) => {
+                    Self::add_output(output, connected_storages)
                 }
                 None => {
                     panic!("Tried to increase_current_storage that does not exist")
                 }
+            }
+        }
+    }
+
+    fn add_output(mut output: &mut Amount, connected_storages: &mut Vec<SingleProductStorageModule>) {
+        let mut missing_amount = output.amount;
+        for connected_storage in connected_storages {
+            let capacity = connected_storage.capacity() - connected_storage.current_storage();
+            let amount_to_store = cmp::min(output.amount, capacity);
+            connected_storage.increase_current_storage(amount_to_store);
+            missing_amount -= amount_to_store;
+
+            if missing_amount == 0 {
+                break;
             }
         }
     }
@@ -91,7 +127,7 @@ impl ProductionModule {
         self.production_trigger_time
     }
 
-    fn next_turn(&mut self, current_turn: &u64, possible_storage: &mut HashMap<String, SingleProductStorageModule>) {
+    fn next_turn(&mut self, current_turn: &u64, possible_storage: &mut HashMap<Product, Vec<SingleProductStorageModule>>) {
         if current_turn >= &self.production_trigger_time {
             if self.production_trigger_time > 0 && self.have_room_for_outputs(&possible_storage) {
                 self.add_all_outputs(possible_storage);
@@ -108,12 +144,11 @@ impl ProductionModule {
 pub struct Amount {
     product: Product,
     amount: u32,
-    connected_storage_name: String,
 }
 
 impl Amount {
-    pub fn new(product: Product, amount: u32, connected_storage_name: String) -> Self {
-        Self { product, amount, connected_storage_name }
+    pub fn new(product: Product, amount: u32) -> Self {
+        Self { product, amount }
     }
 
     pub fn product(&self) -> &Product {
@@ -121,9 +156,6 @@ impl Amount {
     }
     pub fn amount(&self) -> u32 {
         self.amount
-    }
-    pub fn connected_storage_name(&self) -> &str {
-        &self.connected_storage_name
     }
 }
 
@@ -138,23 +170,20 @@ mod tests_int {
 
     #[test]
     fn it_works() {
-        let ore_storage_name = "OreStorage";
-        let ore_storage = SingleProductStorageModule::new(ore_storage_name.to_string(), Product::Ores, 10000, 0);
-        let power_storage_name = "PowerStorage";
-        let mut power_storage = SingleProductStorageModule::new(power_storage_name.to_string(), Product::PowerCells, 20000, 0);
-        let metal_storage_name = "MetalStorage";
-        let metal_storage = SingleProductStorageModule::new(metal_storage_name.to_string(), Product::Metals, 20000, 0);
+        let ore_storage = SingleProductStorageModule::new("OreStorage".to_string(), Product::Ores, 10000, 0);
+        let mut power_storage = SingleProductStorageModule::new("PowerStorage".to_string(), Product::PowerCells, 20000, 0);
+        let metal_storage = SingleProductStorageModule::new("MetalStorage".to_string(), Product::Metals, 20000, 0);
 
-        let mut all_storage: HashMap<String, SingleProductStorageModule> = HashMap::new();
-        all_storage.insert(ore_storage_name.to_string(), ore_storage);
-        all_storage.insert(power_storage_name.to_string(), power_storage);
-        all_storage.insert(metal_storage_name.to_string(), metal_storage);
+        let mut all_storage: HashMap<Product, Vec<SingleProductStorageModule>> = HashMap::new();
+        all_storage.insert(Product::Ores, vec![ore_storage]);
+        all_storage.insert(Product::PowerCells, vec![power_storage]);
+        all_storage.insert(Product::Metals, vec![metal_storage]);
 
-        let output_ore = Amount::new(Product::Ores, 2, ore_storage_name.to_string());
-        let input_ore = Amount::new(Product::Ores, 4, ore_storage_name.to_string());
-        let input_power = Amount::new(Product::PowerCells, 1, power_storage_name.to_string());
-        let input_power_2 = Amount::new(Product::PowerCells, 2, power_storage_name.to_string());
-        let output_metals = Amount::new(Product::Metals, 1, metal_storage_name.to_string());
+        let output_ore = Amount::new(Product::Ores, 2);
+        let input_ore = Amount::new(Product::Ores, 4);
+        let input_power = Amount::new(Product::PowerCells, 1);
+        let input_power_2 = Amount::new(Product::PowerCells, 2);
+        let output_metals = Amount::new(Product::Metals, 1);
 
         let mut ore_production = ProductionModule::new(
             "PowerToOre".to_string(),
@@ -164,14 +193,14 @@ mod tests_int {
             0,
         );
         let mut metal_production = ProductionModule::new(
-            "PowerToOre".to_string(),
+            "OreAndEnergyToMetal".to_string(),
             vec![input_power_2, input_ore],
             vec![output_metals],
             3,
             0,
         );
 
-        all_storage.get_mut(power_storage_name).unwrap().increase_current_storage(1000);
+        all_storage.get_mut(&Product::PowerCells).unwrap().get_mut(0).unwrap().increase_current_storage(1000);
 
         ore_production.next_turn(&1, &mut all_storage);
         metal_production.next_turn(&1, &mut all_storage);
@@ -179,9 +208,9 @@ mod tests_int {
         assert_eq!(2, ore_production.production_trigger_time);
         assert_eq!(0, metal_production.production_trigger_time);
 
-        assert_eq!(999, all_storage.get(power_storage_name).unwrap().current_storage());
-        assert_eq!(0, all_storage.get(ore_storage_name).unwrap().current_storage());
-        assert_eq!(0, all_storage.get(metal_storage_name).unwrap().current_storage());
+        assert_eq!(999, all_storage.get(&Product::PowerCells).unwrap().get(0).unwrap().current_storage());
+        assert_eq!(0, all_storage.get(&Product::Ores).unwrap().get(0).unwrap().current_storage());
+        assert_eq!(0, all_storage.get(&Product::Metals).unwrap().get(0).unwrap().current_storage());
 
         ore_production.next_turn(&2, &mut all_storage);
         metal_production.next_turn(&2, &mut all_storage);
@@ -189,9 +218,9 @@ mod tests_int {
         assert_eq!(3, ore_production.production_trigger_time);
         assert_eq!(0, metal_production.production_trigger_time);
 
-        assert_eq!(998, all_storage.get(power_storage_name).unwrap().current_storage());
-        assert_eq!(2, all_storage.get(ore_storage_name).unwrap().current_storage());
-        assert_eq!(0, all_storage.get(metal_storage_name).unwrap().current_storage());
+        assert_eq!(998, all_storage.get(&Product::PowerCells).unwrap().get(0).unwrap().current_storage());
+        assert_eq!(2, all_storage.get(&Product::Ores).unwrap().get(0).unwrap().current_storage());
+        assert_eq!(0, all_storage.get(&Product::Metals).unwrap().get(0).unwrap().current_storage());
 
         ore_production.next_turn(&3, &mut all_storage);
         metal_production.next_turn(&3, &mut all_storage);
@@ -199,9 +228,9 @@ mod tests_int {
         assert_eq!(4, ore_production.production_trigger_time);
         assert_eq!(6, metal_production.production_trigger_time);
 
-        assert_eq!(995, all_storage.get(power_storage_name).unwrap().current_storage());
-        assert_eq!(0, all_storage.get(ore_storage_name).unwrap().current_storage());
-        assert_eq!(0, all_storage.get(metal_storage_name).unwrap().current_storage());
+        assert_eq!(995, all_storage.get(&Product::PowerCells).unwrap().get(0).unwrap().current_storage());
+        assert_eq!(0, all_storage.get(&Product::Ores).unwrap().get(0).unwrap().current_storage());
+        assert_eq!(0, all_storage.get(&Product::Metals).unwrap().get(0).unwrap().current_storage());
 
         ore_production.next_turn(&4, &mut all_storage);
         metal_production.next_turn(&4, &mut all_storage);
@@ -209,9 +238,10 @@ mod tests_int {
         assert_eq!(5, ore_production.production_trigger_time);
         assert_eq!(6, metal_production.production_trigger_time);
 
-        assert_eq!(994, all_storage.get(power_storage_name).unwrap().current_storage());
-        assert_eq!(2, all_storage.get(ore_storage_name).unwrap().current_storage());
-        assert_eq!(0, all_storage.get(metal_storage_name).unwrap().current_storage());
+        assert_eq!(994, all_storage.get(&Product::PowerCells).unwrap().get(0).unwrap().current_storage());
+        assert_eq!(2, all_storage.get(&Product::Ores).unwrap().get(0).unwrap().current_storage());
+        assert_eq!(0, all_storage.get(&Product::Metals).unwrap().get(0).unwrap().current_storage());
+
 
         ore_production.next_turn(&5, &mut all_storage);
         metal_production.next_turn(&5, &mut all_storage);
@@ -219,9 +249,9 @@ mod tests_int {
         assert_eq!(6, ore_production.production_trigger_time);
         assert_eq!(6, metal_production.production_trigger_time);
 
-        assert_eq!(993, all_storage.get(power_storage_name).unwrap().current_storage());
-        assert_eq!(4, all_storage.get(ore_storage_name).unwrap().current_storage());
-        assert_eq!(0, all_storage.get(metal_storage_name).unwrap().current_storage());
+        assert_eq!(993, all_storage.get(&Product::PowerCells).unwrap().get(0).unwrap().current_storage());
+        assert_eq!(4, all_storage.get(&Product::Ores).unwrap().get(0).unwrap().current_storage());
+        assert_eq!(0, all_storage.get(&Product::Metals).unwrap().get(0).unwrap().current_storage());
 
         ore_production.next_turn(&6, &mut all_storage);
         metal_production.next_turn(&6, &mut all_storage);
@@ -229,8 +259,8 @@ mod tests_int {
         assert_eq!(7, ore_production.production_trigger_time);
         assert_eq!(9, metal_production.production_trigger_time);
 
-        assert_eq!(990, all_storage.get(power_storage_name).unwrap().current_storage());
-        assert_eq!(2, all_storage.get(ore_storage_name).unwrap().current_storage());
-        assert_eq!(1, all_storage.get(metal_storage_name).unwrap().current_storage());
+        assert_eq!(990, all_storage.get(&Product::PowerCells).unwrap().get(0).unwrap().current_storage());
+        assert_eq!(2, all_storage.get(&Product::Ores).unwrap().get(0).unwrap().current_storage());
+        assert_eq!(1, all_storage.get(&Product::Metals).unwrap().get(0).unwrap().current_storage());
     }
 }

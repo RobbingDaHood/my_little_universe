@@ -6,7 +6,7 @@ pub struct Prices {
     max: i32,
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Eq, Hash)]
 pub enum Product {
     Ores,
     Metals,
