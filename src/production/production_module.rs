@@ -37,8 +37,11 @@ impl ProductionModule {
 
     fn subtract_all_inputs(&mut self, construct: &mut Construct) {
         for input in &self.input {
-            construct.unload(input.product(), input.amount())
-                .expect("Were not able to unload all inputs.")
+            let leftover = construct.unload(input.product(), input.amount());
+
+            if leftover != input.amount() {
+                panic!("Concurrency issue: subtract_all_inputs should be called right after have_all_inputs and ensure room")
+            }
         }
     }
 
@@ -53,8 +56,11 @@ impl ProductionModule {
 
     fn add_all_outputs(&mut self, construct: &mut Construct) {
         for mut output in &mut self.output {
-            construct.load(output.product(), output.amount)
-                .expect("Were not able to add all outputs.")
+            let leftover = construct.load(output.product(), output.amount);
+
+            if leftover != 0 {
+                panic!("Concurrency issue: add_all_outputs should be called right after have_room_for_outputs and ensure room")
+            }
         }
     }
 
@@ -146,9 +152,7 @@ mod tests_int {
             0,
         );
 
-        if let Err(_) = construct.load(&Product::PowerCells, 200) {
-            assert!(false)
-        }
+        construct.load(&Product::PowerCells, 200);
 
         ore_production.next_turn(&1, &mut construct);
         metal_production.next_turn(&1, &mut construct);

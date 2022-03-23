@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
@@ -28,44 +29,69 @@ impl Construct {
         &self.current_storage
     }
 
-    pub fn unload(&mut self, product: &Product, amount: u32) -> Result<(), String> {
+    pub fn unload(&mut self, product: &Product, amount: u32) -> u32 {
         match self.current_storage.get_mut(product) {
             Some(amount_stored) => {
                 if *amount_stored > amount {
                     *amount_stored -= amount;
-                    Ok(())
-                } else if *amount_stored == amount {
-                    return match self.current_storage.remove(product) {
-                        Some(_) => { Ok(()) }
-                        None => { panic!("Just checked that product were there, but now it is not. Concurrency issue. Good luck! ") }
-                    }
+                    amount
                 } else {
-                    Err(format!("There is not {} {:?} in storage. Only had {}", amount, product, amount_stored))
+                    return match self.current_storage.remove(product) {
+                        Some(amount_stored) => { min(amount_stored, amount) }
+                        None => { panic!("Just checked that product were there, but now it is not. Concurrency issue. Good luck! ") }
+                    };
                 }
             }
             None => {
-                Err(format!("Tried to reduce_current_storage on a non existing storage, {:?}", product))
+                0
             }
         }
     }
 
-    pub fn load(&mut self, product: &Product, amount: u32) -> Result<(), String> {
-        if self.capacity >= self.current_storage.values().sum::<u32>() + amount {
-            match self.current_storage.get_mut(product) {
-                Some(amount_stored) => {
-                    *amount_stored += amount;
-                    println!("some");
-                }
-                None => {
-                    self.current_storage.insert(product.clone(), amount);
-                    println!("None");
-                }
+    pub fn load(&mut self, product: &Product, amount: u32) -> u32 {
+        let leftover_capacity = self.capacity - self.current_storage.values().sum::<u32>();
+        let amount_to_be_stored = dbg!(min(leftover_capacity, amount));
+
+        if amount_to_be_stored == 0 {
+            return amount
+        }
+
+        match self.current_storage.get_mut(product) {
+            Some(amount_stored) => {
+                *amount_stored += amount_to_be_stored;
+                println!("some");
             }
-            Ok(())
+            None => {
+                self.current_storage.insert(product.clone(), amount_to_be_stored);
+                println!("None");
+            }
+        }
+
+        if amount_to_be_stored >= amount {
+            0
         } else {
-            Err(format!("Not enough capacity to load {}", amount))
+            amount - amount_to_be_stored
         }
     }
 }
 
 
+#[cfg(test)]
+mod tests_int {
+    use crate::production::cosntruct::Construct;
+    use crate::products::Product;
+
+    #[test]
+    fn load_and_unload_tries_its_best() {
+        let mut construct = Construct::new("The base".to_string(), 500);
+
+        assert_eq!(200, construct.load(&Product::PowerCells, 700));
+        assert_eq!(500, construct.unload(&Product::PowerCells, 700));
+
+        assert_eq!(200, construct.load(&Product::PowerCells, 700));
+        assert_eq!(700, construct.load(&Product::PowerCells, 700));
+
+        assert_eq!(500, construct.unload(&Product::PowerCells, 700));
+        assert_eq!(0, construct.unload(&Product::PowerCells, 700));
+    }
+}
