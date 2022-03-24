@@ -131,23 +131,17 @@ mod tests_int {
     fn it_works() {
         let mut construct = Construct::new("The base".to_string(), 500);
 
-        let output_ore = Amount::new(Product::Ores, 2);
-        let input_ore = Amount::new(Product::Ores, 4);
-        let input_power = Amount::new(Product::PowerCells, 1);
-        let input_power_2 = Amount::new(Product::PowerCells, 2);
-        let output_metals = Amount::new(Product::Metals, 1);
-
         let mut ore_production = ProductionModule::new(
             "PowerToOre".to_string(),
-            vec![input_power],
-            vec![output_ore],
+            vec![Amount::new(Product::PowerCells, 1)],
+            vec![Amount::new(Product::Ores, 2)],
             1,
             0,
         );
         let mut metal_production = ProductionModule::new(
             "OreAndEnergyToMetal".to_string(),
-            vec![input_power_2, input_ore],
-            vec![output_metals],
+            vec![Amount::new(Product::PowerCells, 2), Amount::new(Product::Ores, 4)],
+            vec![Amount::new(Product::Metals, 1)],
             3,
             0,
         );
