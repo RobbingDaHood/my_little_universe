@@ -15,6 +15,8 @@ pub struct ProductionModule {
     output: Vec<Amount>,
     production_time: u32,
     production_trigger_time: u64,
+    stored_input: bool,
+    stored_output: bool
 }
 
 impl ProductionModule {
@@ -37,7 +39,7 @@ impl ProductionModule {
 
     fn subtract_all_inputs(&mut self, construct: &mut Construct) {
         for input in &self.input {
-            let leftover = construct.unload(input.product(), input.amount());
+            let leftover = construct.unload_request(&Amount::new(input.product().clone(), input.amount()));
 
             if leftover != input.amount() {
                 panic!("Concurrency issue: subtract_all_inputs should be called right after have_all_inputs and ensure room")
@@ -54,9 +56,32 @@ impl ProductionModule {
         return total_need + construct.current_storage().values().sum::<u32>() <= construct.capacity();
     }
 
+    pub fn will_output(&self, current_turn: &u64) -> Option<&Vec<Amount>> {
+        if dbg!(self.production_trigger_time > 0) && dbg!(current_turn >= &self.production_trigger_time) {
+            return Some(self.output())
+        }
+        None
+    }
+
+    pub fn require_input(&self, current_turn: &u64) -> Option<&Vec<Amount>> {
+        if current_turn >= &self.production_trigger_time {
+            return Some(self.input())
+        }
+        None
+    }
+
+    pub fn handle_turn(&mut self, current_turn: &u64) {
+        if self.production_trigger_time <= *current_turn {
+            if self.stored_input && !self.stored_output {
+                self.production_trigger_time = current_turn + u64::from(self.production_time);
+                self.stored_input = false;
+            }
+        }
+    }
+
     fn add_all_outputs(&mut self, construct: &mut Construct) {
         for mut output in &mut self.output {
-            let leftover = construct.load(output.product(), output.amount);
+            let leftover = construct.load_request(&Amount::new(output.product().clone(), output.amount));
 
             if leftover != 0 {
                 panic!("Concurrency issue: add_all_outputs should be called right after have_room_for_outputs and ensure room")
@@ -65,7 +90,7 @@ impl ProductionModule {
     }
 
     pub fn new(name: String, input: Vec<Amount>, output: Vec<Amount>, production_time: u32, production_trigger_time: u64) -> Self {
-        Self { name, input, output, production_time, production_trigger_time }
+        Self { name, input, output, production_time, production_trigger_time, stored_input: false, stored_output: false }
     }
 
     pub fn name(&self) -> &str {
@@ -84,7 +109,21 @@ impl ProductionModule {
         self.production_trigger_time
     }
 
-    fn next_turn(&mut self, current_turn: &u64, construct: &mut Construct) {
+    pub fn stored_input(&self) -> bool {
+        self.stored_input
+    }
+    pub fn stored_output(&self) -> bool {
+        self.stored_output
+    }
+
+    pub fn set_stored_input(&mut self, stored_input: bool) {
+        self.stored_input = stored_input;
+    }
+    pub fn set_stored_output(&mut self, stored_output: bool) {
+        self.stored_output = stored_output;
+    }
+
+    pub fn next_turn(&mut self, current_turn: &u64, construct: &mut Construct) {
         if current_turn >= &self.production_trigger_time {
             if self.production_trigger_time > 0 && self.have_room_for_outputs(&construct) {
                 println!("construct in have_room_for_outputs {:?}", construct);
@@ -146,7 +185,7 @@ mod tests_int {
             0,
         );
 
-        construct.load(&Product::PowerCells, 200);
+        construct.load_request(&Amount::new(Product::PowerCells, 200));
 
         ore_production.next_turn(&1, &mut construct);
         metal_production.next_turn(&1, &mut construct);

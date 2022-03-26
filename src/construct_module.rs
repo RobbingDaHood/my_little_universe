@@ -23,3 +23,13 @@ pub enum ConstructModuleType {
     Production(ProductionModule)
 }
 
+impl ConstructModuleType {
+    pub fn name(&self) -> &str {
+        return match self {
+            ConstructModuleType::Production(production_module) => {
+                production_module.name()
+            }
+        }
+    }
+}
+
