@@ -57,14 +57,14 @@ impl ProductionModule {
     }
 
     pub fn will_output(&self, current_turn: &u64) -> Option<&Vec<Amount>> {
-        if dbg!(self.production_trigger_time > 0) && dbg!(current_turn >= &self.production_trigger_time) {
+        if self.stored_output|| (self.stored_input && current_turn >= &self.production_trigger_time) {
             return Some(self.output())
         }
         None
     }
 
     pub fn require_input(&self, current_turn: &u64) -> Option<&Vec<Amount>> {
-        if current_turn >= &self.production_trigger_time {
+        if current_turn >= &self.production_trigger_time && !self.stored_input {
             return Some(self.input())
         }
         None
@@ -74,7 +74,6 @@ impl ProductionModule {
         if self.production_trigger_time <= *current_turn {
             if self.stored_input && !self.stored_output {
                 self.production_trigger_time = current_turn + u64::from(self.production_time);
-                self.stored_input = false;
             }
         }
     }

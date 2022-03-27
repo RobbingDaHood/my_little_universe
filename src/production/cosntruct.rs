@@ -62,7 +62,7 @@ impl Construct {
         Ok(())
     }
 
-    fn uninstall(&mut self, module_name: &String) -> Result<(), String>  {
+    fn uninstall(&mut self, module_name: &String) -> Result<(), String> {
         if self.modules.iter()
             .find(|m| m.name().eq(module_name))
             .is_none() {
@@ -123,15 +123,17 @@ fn handle_production_output(current_storage: &mut HashMap<Product, u32>, capacit
         let total_output = amounts.iter()
             .map(|amount| amount.amount())
             .sum::<u32>();
-        let total_free_capcity = capacity - current_storage.values().sum::<u32>();
+        let total_free_capacity = capacity - current_storage.values().sum::<u32>();
 
-        if total_output <= total_free_capcity {
+        if total_output <= total_free_capacity {
             for amount in amounts {
                 load(current_storage, amount);
             }
             production_module.set_stored_output(false);
+            production_module.set_stored_input(false);
+        } else {
+            production_module.set_stored_output(true);
         }
-        production_module.set_stored_output(true);
     }
 }
 
@@ -256,8 +258,6 @@ mod tests_int {
 
         construct.next_turn(&3);
 
-        //println!("construct: {:?}", construct);
-
         assert_eq!(Some(&195), construct.current_storage.get(&Product::PowerCells));
         assert_eq!(None, construct.current_storage.get(&Product::Ores));
         assert_eq!(None, construct.current_storage.get(&Product::Metals));
@@ -279,5 +279,55 @@ mod tests_int {
         assert_eq!(Some(&190), construct.current_storage.get(&Product::PowerCells));
         assert_eq!(Some(&2), construct.current_storage.get(&Product::Ores));
         assert_eq!(Some(&1), construct.current_storage.get(&Product::Metals));
+
+        for i in { 7..200 } {
+            construct.next_turn(&i);
+        }
+
+        assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
+        assert_eq!(Some(&80), construct.current_storage.get(&Product::Ores));
+        assert_eq!(Some(&40), construct.current_storage.get(&Product::Metals)); //(200-80/2)/4
+
+        for i in { 201..205 } {
+            construct.next_turn(&i);
+        }
+
+        assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
+        assert_eq!(Some(&80), construct.current_storage.get(&Product::Ores));
+        assert_eq!(Some(&40), construct.current_storage.get(&Product::Metals));
+
+        //Bigger output than input will fill up the station over time
+        let mut metal_production = ProductionModule::new(
+            "MetalToEnergy".to_string(),
+            vec![Amount::new(Product::Metals, 1)],
+            vec![Amount::new(Product::PowerCells, 200)],
+            1,
+            0,
+        );
+        assert_eq!(Ok(()), construct.install(Production(metal_production.clone())));
+
+        construct.next_turn(&206);
+
+        assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
+        assert_eq!(Some(&80), construct.current_storage.get(&Product::Ores));
+        assert_eq!(Some(&39), construct.current_storage.get(&Product::Metals));
+
+        construct.next_turn(&207);
+
+        assert_eq!(Some(&200), construct.current_storage.get(&Product::PowerCells));
+        assert_eq!(Some(&80), construct.current_storage.get(&Product::Ores));
+        assert_eq!(Some(&38), construct.current_storage.get(&Product::Metals));
+
+        construct.next_turn(&208);
+
+        assert_eq!(Some(&197), construct.current_storage.get(&Product::PowerCells));
+        assert_eq!(Some(&76), construct.current_storage.get(&Product::Ores));
+        assert_eq!(Some(&38), construct.current_storage.get(&Product::Metals));
+
+        construct.next_turn(&209);
+
+        assert_eq!(Some(&196), construct.current_storage.get(&Product::PowerCells));
+        assert_eq!(Some(&78), construct.current_storage.get(&Product::Ores));
+        assert_eq!(Some(&38), construct.current_storage.get(&Product::Metals));
     }
 }
