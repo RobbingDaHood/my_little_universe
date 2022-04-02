@@ -3,9 +3,48 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::construct::production_module::{Amount, ProductionModule};
 use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
-use crate::production::production_module::{Amount, ProductionModule};
 use crate::products::Product;
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct LoadingRequest {
+    product: Product,
+    amount: u32,
+}
+
+impl LoadingRequest {
+    pub fn new(product: Product, amount: u32) -> Self {
+        LoadingRequest { product, amount }
+    }
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum ConstructEventType {
+    Internal(InternalConstructEventType),
+    External(ExternalConstructEventType),
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum InternalConstructEventType {
+    ExecuteTurn(u64),
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum ExternalConstructEventType {
+    RequestLoad(LoadingRequest),
+    RequestUnload(LoadingRequest),
+    GetConstructState { include_stack: bool },
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum ConstructEvenReturnType {
+    Denied(String),
+    Approved,
+    ConstructState(Construct),
+    TurnExecuted,
+}
+
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Construct {
@@ -13,11 +52,12 @@ pub struct Construct {
     capacity: u32,
     current_storage: HashMap<Product, u32>,
     modules: Vec<ConstructModuleType>,
+    event_stack: Vec<ConstructEventType>
 }
 
 impl Construct {
     pub fn new(name: String, capacity: u32) -> Self {
-        Construct { name, capacity, current_storage: HashMap::new(), modules: Vec::new() }
+        Construct { name, capacity, current_storage: HashMap::new(), modules: Vec::new(), event_stack: Vec::new() }
     }
 
     pub fn name(&self) -> &str {
@@ -28,6 +68,54 @@ impl Construct {
     }
     pub fn current_storage(&self) -> &HashMap<Product, u32> {
         &self.current_storage
+    }
+
+    pub fn push_event(&mut self, event: &ConstructEventType) -> ConstructEvenReturnType {
+        self.event_stack.push(event.clone());
+        self.handle_event(event)
+    }
+
+    fn handle_event(&mut self, event: &ConstructEventType) -> ConstructEvenReturnType {
+        return match event {
+            ConstructEventType::External(ExternalConstructEventType::GetConstructState { include_stack }) => {
+                if *include_stack {
+                    ConstructEvenReturnType::ConstructState(self.clone())
+                } else {
+                    let mut state = self.clone();
+                    state.event_stack = Vec::new();
+                    ConstructEvenReturnType::ConstructState(state)
+                }
+            }
+            ConstructEventType::External(ExternalConstructEventType::RequestLoad(request)) => {
+                if self.capacity < self.current_storage.values().sum::<u32>() + request.amount {
+                    let free_capacity : u32 = self.capacity - self.current_storage.values().sum::<u32>();
+                    ConstructEvenReturnType::Denied(format!("Loading request denied. This station only has {:?} free capacity and you tried to load {:?}.", free_capacity, request.amount))
+                } else {
+                    load(&mut self.current_storage, &Amount::new(request.product.clone(), request.amount));
+                    return ConstructEvenReturnType::Approved;
+                }
+            }
+            ConstructEventType::External(ExternalConstructEventType::RequestUnload(request)) => {
+                for stored_product in &mut self.current_storage {
+                    if *stored_product.0 == request.product {
+                        return match stored_product.1.checked_sub(request.amount) {
+                            Some(_) => {
+                                unload(&mut self.current_storage, &Amount::new(request.product.clone(), request.amount));
+                                ConstructEvenReturnType::Approved
+                            }
+                            None => {
+                                ConstructEvenReturnType::Denied(format!("Unloading request denied. Requested {} but there were only {} available.", &request.amount, stored_product.1))
+                            }
+                        };
+                    }
+                }
+                ConstructEvenReturnType::Denied(format!("Unloading request denied. This construct does not store any {:?}.", &request.product))
+            }
+            ConstructEventType::Internal(InternalConstructEventType::ExecuteTurn(current_turn)) => {
+                self.next_turn(&current_turn);
+                ConstructEvenReturnType::TurnExecuted
+            }
+        };
     }
 
     pub fn unload_request(&mut self, amount: &Amount) -> u32 {
@@ -154,10 +242,10 @@ fn handle_production_input(current_storage: &mut HashMap<Product, u32>, current_
 
 #[cfg(test)]
 mod tests_int {
+    use crate::construct::construct::Construct;
+    use crate::construct::production_module::{Amount, ProductionModule};
     use crate::construct_module::CanHandleNextTurn;
     use crate::construct_module::ConstructModuleType::Production;
-    use crate::production::cosntruct::Construct;
-    use crate::production::production_module::{Amount, ProductionModule};
     use crate::products::Product;
 
     #[test]

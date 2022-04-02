@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
-use crate::production::cosntruct;
-use crate::production::cosntruct::Construct;
+use crate::construct::construct;
+use crate::construct::construct::Construct;
 use crate::products::Product;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -161,8 +161,8 @@ mod tests_int {
     use std::collections::HashMap;
 
     use crate::construct_module::CanHandleNextTurn;
-    use crate::production::cosntruct::Construct;
-    use crate::production::production_module::{Amount, ProductionModule};
+    use crate::construct::construct::Construct;
+    use crate::construct::production_module::{Amount, ProductionModule};
     use crate::products::Product;
 
     #[test]

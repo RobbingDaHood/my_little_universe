@@ -1,6 +1,8 @@
 use serde::{Deserialize, Serialize};
-use crate::my_little_universe::MyLittleUniverseReturnValues;
+use crate::construct::construct;
 
+use crate::construct::construct::{ConstructEvenReturnType, ExternalConstructEventType};
+use crate::my_little_universe::MyLittleUniverseReturnValues;
 use crate::products::Product;
 use crate::save_load::{ExternalSaveLoad, ExternalSaveLoadReturnValue};
 use crate::station::{ExternalStationEventType, LoadingRequest, StationEvenReturnType};
@@ -11,6 +13,7 @@ pub enum ExternalCommands {
     Time(ExternalTimeEventType),
     Station(String, ExternalStationEventType),
     Save(ExternalSaveLoad),
+    Construct(String, ExternalConstructEventType),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -18,7 +21,8 @@ pub enum ExternalCommandReturnValues {
     Time(TimeEventReturnType),
     Station(StationEvenReturnType),
     Save(ExternalSaveLoadReturnValue),
-    Universe(MyLittleUniverseReturnValues)
+    Universe(MyLittleUniverseReturnValues),
+    Construct(ConstructEvenReturnType),
 }
 
 impl TryFrom<&String> for ExternalCommands {
@@ -34,6 +38,7 @@ impl TryFrom<&String> for ExternalCommands {
         return match command_parts[0] {
             "Time" => { Self::parse_time(command_parts) }
             "Station" => { Self::parse_station(command_parts) }
+            "Construct" => { Self::parse_construct(command_parts) }
             "Save" => { Self::parse_save_load(command_parts) }
             _ => { Err(format!("Unknown command, got: {}", value)) }
         };
@@ -132,6 +137,62 @@ impl ExternalCommands {
                 return Err(format!("GetStationState optinal booĺ include_stack. Got {:?}", command_parts));
             }
             _ => Err(format!("Unknown Station command. Got {:?}", command_parts))
+        }
+    }
+
+    fn parse_construct(command_parts: Vec<&str>) -> Result<Self, String> {
+        if command_parts.len() < 3 {
+            return Err(format!("Construct command needs at least the Construct name and command name. Got {:?}", command_parts));
+        }
+
+        let construct_name = command_parts[1];
+
+        match command_parts[2] {
+            "RequestLoad" => {
+                if command_parts.len() > 4 {
+                    let product = match command_parts[3] {
+                        "Ores" => { Some(Product::Ores) }
+                        "Metals" => { Some(Product::Metals) }
+                        "PowerCells" => { Some(Product::PowerCells) }
+                        _ => { None }
+                    };
+
+                    if let Some(product_value) = product {
+                        if let Ok(amount) = command_parts[4].parse::<u32>() {
+                            return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::RequestLoad(construct::LoadingRequest::new(product_value, amount))));
+                        }
+                    }
+                }
+                return Err(format!("RequestLoad need Product and u32 amount. Got {:?}", command_parts));
+            }
+            "RequestUnload" => {
+                if command_parts.len() > 4 {
+                    let product = match command_parts[3] {
+                        "Ores" => { Some(Product::Ores) }
+                        "Metals" => { Some(Product::Metals) }
+                        "PowerCells" => { Some(Product::PowerCells) }
+                        _ => { None }
+                    };
+
+                    if let Some(product_value) = product {
+                        if let Ok(amount) = command_parts[4].parse::<u32>() {
+                            return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::RequestUnload(construct::LoadingRequest::new(product_value, amount))));
+                        }
+                    }
+                }
+                return Err(format!("RequestUnload need Product and u32 amount. Got {:?}", command_parts));
+            }
+            "ConstructState" => {
+                if command_parts.len() > 3 {
+                    if let Ok(include_stack) = command_parts[3].parse::<bool>() {
+                        return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::GetConstructState { include_stack }));
+                    }
+                } else {
+                    return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::GetConstructState { include_stack: true }));
+                }
+                return Err(format!("GetConstructState optinal booĺ include_stack. Got {:?}", command_parts));
+            }
+            _ => Err(format!("Unknown Construct command. Got {:?}", command_parts))
         }
     }
 

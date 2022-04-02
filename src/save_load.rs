@@ -75,15 +75,15 @@ fn load_station(universe_name: &String, station_name: &String) -> Station {
 impl MyLittleUniverse {
     pub fn save(&self) -> ExternalSaveLoadReturnValue {
         self.time().save(&self.universe_name().to_string());
-        for construct in self.constructs().values() {
-            construct.save(&self.universe_name().to_string());
+        for station in self.stations().values() {
+            station.save(&self.universe_name().to_string());
         }
         ExternalSaveLoadReturnValue::UniverseIsSaved
     }
     pub fn save_as(&self, new_universe_name: &String) -> ExternalSaveLoadReturnValue {
         self.time().save(new_universe_name);
-        for construct in self.constructs().values() {
-            construct.save(&self.universe_name().to_string());
+        for station in self.stations().values() {
+            station.save(&self.universe_name().to_string());
         }
         ExternalSaveLoadReturnValue::UniverseIsSaved
     }
@@ -111,7 +111,7 @@ pub fn load_universe(universe_name: String) -> MyLittleUniverse {
         println!("No stations were loaded, that is likely a mistake. Tried loadi")
     }
 
-    MyLittleUniverse::new(universe_name.clone(), time, stations)
+    MyLittleUniverse::new(universe_name.clone(), time, stations, HashMap::new())
 }
 
 pub fn load_or_create_universe(universe_name: String) -> MyLittleUniverse {

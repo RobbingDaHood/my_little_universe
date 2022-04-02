@@ -26,7 +26,7 @@ pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
     let mut stations : HashMap<String, Station> = HashMap::new();
     stations.insert(station.name().to_string(), station);
 
-    MyLittleUniverse::new(universe_name, TimeStackState::new(), stations)
+    MyLittleUniverse::new(universe_name, TimeStackState::new(), stations, HashMap::new())
 }
 
 
@@ -54,6 +54,5 @@ pub fn generate_performance_test_universe(universe_name: String) -> MyLittleUniv
         stations.insert(station.name().to_string(), station);
     }
 
-
-    MyLittleUniverse::new(universe_name, TimeStackState::new(), stations)
+    MyLittleUniverse::new(universe_name, TimeStackState::new(), stations, HashMap::new())
 }

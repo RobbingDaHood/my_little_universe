@@ -1,7 +1,7 @@
 use std::fmt::format;
 use crate::products::Product;
 use serde::{Deserialize, Serialize};
-use crate::production::production_module::ProductionModule;
+use crate::construct::production_module::ProductionModule;
 
 pub trait CanHandleNextTurn {
     fn next_turn(&mut self, current_turn: &u64);
