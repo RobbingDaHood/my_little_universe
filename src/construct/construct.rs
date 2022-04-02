@@ -3,6 +3,7 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::construct::construct::ConstructEvenReturnType::{Denied, RequestLoadProcessed, RequestUnloadProcessed};
 use crate::construct::production_module::{Amount, ProductionModule};
 use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
 use crate::products::Product;
@@ -29,6 +30,8 @@ pub enum ExternalConstructEventType {
 pub enum ConstructEvenReturnType {
     Denied(String),
     Approved,
+    RequestLoadProcessed(u32),
+    RequestUnloadProcessed(u32),
     ConstructState(Construct),
     TurnExecuted,
 }
@@ -40,7 +43,7 @@ pub struct Construct {
     capacity: u32,
     current_storage: HashMap<Product, u32>,
     modules: Vec<ConstructModuleType>,
-    event_stack: Vec<ConstructEventType>
+    event_stack: Vec<ConstructEventType>,
 }
 
 impl Construct {
@@ -75,29 +78,10 @@ impl Construct {
                 }
             }
             ConstructEventType::External(ExternalConstructEventType::RequestLoad(request)) => {
-                if self.capacity < self.current_storage.values().sum::<u32>() + request.amount() {
-                    let free_capacity : u32 = self.capacity - self.current_storage.values().sum::<u32>();
-                    ConstructEvenReturnType::Denied(format!("Loading request denied. This station only has {:?} free capacity and you tried to load {:?}.", free_capacity, request.amount()))
-                } else {
-                    load(&mut self.current_storage, request);
-                    return ConstructEvenReturnType::Approved;
-                }
+                RequestLoadProcessed(self.load_request(request))
             }
             ConstructEventType::External(ExternalConstructEventType::RequestUnload(request)) => {
-                for stored_product in &mut self.current_storage {
-                    if stored_product.0 == request.product() {
-                        return match stored_product.1.checked_sub(request.amount()) {
-                            Some(_) => {
-                                unload(&mut self.current_storage, request);
-                                ConstructEvenReturnType::Approved
-                            }
-                            None => {
-                                ConstructEvenReturnType::Denied(format!("Unloading request denied. Requested {} but there were only {} available.", &request.amount(), stored_product.1))
-                            }
-                        };
-                    }
-                }
-                ConstructEvenReturnType::Denied(format!("Unloading request denied. This construct does not store any {:?}.", &request.product()))
+                RequestUnloadProcessed(self.unload_request(request))
             }
             ConstructEventType::Internal(InternalConstructEventType::ExecuteTurn(current_turn)) => {
                 self.next_turn(&current_turn);
@@ -230,7 +214,8 @@ fn handle_production_input(current_storage: &mut HashMap<Product, u32>, current_
 
 #[cfg(test)]
 mod tests_int {
-    use crate::construct::construct::Construct;
+    use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
+    use crate::construct::construct::ExternalConstructEventType::RequestLoad;
     use crate::construct::production_module::{Amount, ProductionModule};
     use crate::construct_module::CanHandleNextTurn;
     use crate::construct_module::ConstructModuleType::Production;
@@ -241,25 +226,24 @@ mod tests_int {
         let mut construct = Construct::new("The base".to_string(), 500);
         assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
 
-        assert_eq!(200, construct.load_request(&Amount::new(Product::PowerCells, 700)));
+        assert_eq!(200, request_load(&mut construct, Amount::new(Product::PowerCells, 700)));
         assert_eq!(500, *construct.current_storage.get(&Product::PowerCells).unwrap());
 
-        assert_eq!(500, construct.unload_request(&Amount::new(Product::PowerCells, 700)));
+        assert_eq!(500, request_unload(&mut construct, Amount::new(Product::PowerCells, 700)));
         assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
 
-        assert_eq!(200, construct.load_request(&Amount::new(Product::PowerCells, 700)));
+        assert_eq!(200, request_load(&mut construct, Amount::new(Product::PowerCells, 700)));
         assert_eq!(500, *construct.current_storage.get(&Product::PowerCells).unwrap());
 
-        assert_eq!(700, construct.load_request(&Amount::new(Product::PowerCells, 700)));
+        assert_eq!(700, request_load(&mut construct, Amount::new(Product::PowerCells, 700)));
         assert_eq!(500, *construct.current_storage.get(&Product::PowerCells).unwrap());
 
-        assert_eq!(500, construct.unload_request(&Amount::new(Product::PowerCells, 700)));
+        assert_eq!(500, request_unload(&mut construct, Amount::new(Product::PowerCells, 700)));
         assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
 
-        assert_eq!(0, construct.unload_request(&Amount::new(Product::PowerCells, 700)));
+        assert_eq!(0, request_unload(&mut construct, Amount::new(Product::PowerCells, 700)));
         assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
     }
-
 
     #[test]
     fn install_and_uninstall_tries_its_best() {
@@ -318,46 +302,46 @@ mod tests_int {
         assert_eq!(None, construct.current_storage.get(&Product::Ores));
         assert_eq!(None, construct.current_storage.get(&Product::Metals));
 
-        assert_eq!(0, construct.load_request(&Amount::new(Product::PowerCells, 200)));
+        assert_eq!(0, request_load(&mut construct, Amount::new(Product::PowerCells, 200)));
 
-        construct.next_turn(&1);
+        next_turn(&mut construct, 1);
 
         assert_eq!(Some(&199), construct.current_storage.get(&Product::PowerCells));
         assert_eq!(None, construct.current_storage.get(&Product::Ores));
         assert_eq!(None, construct.current_storage.get(&Product::Metals));
 
-        construct.next_turn(&2);
+        next_turn(&mut construct, 2);
 
         assert_eq!(Some(&198), construct.current_storage.get(&Product::PowerCells));
         assert_eq!(Some(&2), construct.current_storage.get(&Product::Ores));
         assert_eq!(None, construct.current_storage.get(&Product::Metals));
 
-        construct.next_turn(&3);
+        next_turn(&mut construct, 3);
 
         assert_eq!(Some(&195), construct.current_storage.get(&Product::PowerCells));
         assert_eq!(None, construct.current_storage.get(&Product::Ores));
         assert_eq!(None, construct.current_storage.get(&Product::Metals));
 
-        construct.next_turn(&4);
+        next_turn(&mut construct, 4);
 
         assert_eq!(Some(&194), construct.current_storage.get(&Product::PowerCells));
         assert_eq!(Some(&2), construct.current_storage.get(&Product::Ores));
         assert_eq!(None, construct.current_storage.get(&Product::Metals));
 
-        construct.next_turn(&5);
+        next_turn(&mut construct, 5);
 
         assert_eq!(Some(&193), construct.current_storage.get(&Product::PowerCells));
         assert_eq!(Some(&4), construct.current_storage.get(&Product::Ores));
         assert_eq!(None, construct.current_storage.get(&Product::Metals));
 
-        construct.next_turn(&6);
+        next_turn(&mut construct, 6);
 
         assert_eq!(Some(&190), construct.current_storage.get(&Product::PowerCells));
         assert_eq!(Some(&2), construct.current_storage.get(&Product::Ores));
         assert_eq!(Some(&1), construct.current_storage.get(&Product::Metals));
 
         for i in { 7..200 } {
-            construct.next_turn(&i);
+            next_turn(&mut construct, i);
         }
 
         assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
@@ -365,7 +349,7 @@ mod tests_int {
         assert_eq!(Some(&40), construct.current_storage.get(&Product::Metals)); //(200-80/2)/4
 
         for i in { 201..205 } {
-            construct.next_turn(&i);
+            next_turn(&mut construct, i);
         }
 
         assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
@@ -382,28 +366,51 @@ mod tests_int {
         );
         assert_eq!(Ok(()), construct.install(Production(metal_production.clone())));
 
-        construct.next_turn(&206);
+        next_turn(&mut construct, 206);
 
         assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
         assert_eq!(Some(&80), construct.current_storage.get(&Product::Ores));
         assert_eq!(Some(&39), construct.current_storage.get(&Product::Metals));
 
-        construct.next_turn(&207);
+        next_turn(&mut construct, 207);
 
         assert_eq!(Some(&200), construct.current_storage.get(&Product::PowerCells));
         assert_eq!(Some(&80), construct.current_storage.get(&Product::Ores));
         assert_eq!(Some(&38), construct.current_storage.get(&Product::Metals));
 
-        construct.next_turn(&208);
+        next_turn(&mut construct, 208);
 
         assert_eq!(Some(&197), construct.current_storage.get(&Product::PowerCells));
         assert_eq!(Some(&76), construct.current_storage.get(&Product::Ores));
         assert_eq!(Some(&38), construct.current_storage.get(&Product::Metals));
 
-        construct.next_turn(&209);
+        next_turn(&mut construct, 209);
 
         assert_eq!(Some(&196), construct.current_storage.get(&Product::PowerCells));
         assert_eq!(Some(&78), construct.current_storage.get(&Product::Ores));
         assert_eq!(Some(&38), construct.current_storage.get(&Product::Metals));
+    }
+
+    fn request_load(construct: &mut Construct, amount: Amount) -> u32 {
+        if let ConstructEvenReturnType::RequestLoadProcessed(loaded_value) = construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::RequestLoad(amount))) {
+            loaded_value
+        } else {
+            panic!("request_load failed in test")
+        }
+    }
+
+    fn request_unload(construct: &mut Construct, amount: Amount) -> u32 {
+        if let ConstructEvenReturnType::RequestUnloadProcessed(loaded_value) = construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::RequestUnload(amount))) {
+            loaded_value
+        } else {
+            panic!("request_load failed in test")
+        }
+    }
+
+    fn next_turn(construct: &mut Construct, turn: u64) {
+        match construct.handle_event(&ConstructEventType::Internal(InternalConstructEventType::ExecuteTurn(turn))) {
+            ConstructEvenReturnType::TurnExecuted => {}
+            _ => panic!("request_load failed in test")
+        }
     }
 }
