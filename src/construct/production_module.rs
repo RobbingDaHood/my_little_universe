@@ -3,9 +3,10 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
+use crate::construct::amount::Amount;
 use crate::construct::construct;
 use crate::construct::construct::Construct;
+use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
 use crate::products::Product;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -16,7 +17,7 @@ pub struct ProductionModule {
     production_time: u32,
     production_trigger_time: u64,
     stored_input: bool,
-    stored_output: bool
+    stored_output: bool,
 }
 
 impl ProductionModule {
@@ -25,7 +26,7 @@ impl ProductionModule {
         for input in &self.input {
             match construct.current_storage().get(input.product()) {
                 Some(amount_stored) => {
-                    if input.amount > *amount_stored {
+                    if input.amount() > *amount_stored {
                         return false;
                     }
                 }
@@ -51,21 +52,21 @@ impl ProductionModule {
         let mut total_need = 0;
         println!("production in have_room_for_outputs {:?}", self);
         for output in &self.output {
-            total_need += output.amount;
+            total_need += output.amount();
         }
         return total_need + construct.current_storage().values().sum::<u32>() <= construct.capacity();
     }
 
     pub fn will_output(&self, current_turn: &u64) -> Option<&Vec<Amount>> {
-        if self.stored_output|| (self.stored_input && current_turn >= &self.production_trigger_time) {
-            return Some(self.output())
+        if self.stored_output || (self.stored_input && current_turn >= &self.production_trigger_time) {
+            return Some(self.output());
         }
         None
     }
 
     pub fn require_input(&self, current_turn: &u64) -> Option<&Vec<Amount>> {
         if current_turn >= &self.production_trigger_time && !self.stored_input {
-            return Some(self.input())
+            return Some(self.input());
         }
         None
     }
@@ -80,7 +81,7 @@ impl ProductionModule {
 
     fn add_all_outputs(&mut self, construct: &mut Construct) {
         for mut output in &mut self.output {
-            let leftover = construct.load_request(&Amount::new(output.product().clone(), output.amount));
+            let leftover = construct.load_request(&Amount::new(output.product().clone(), output.amount()));
 
             if leftover != 0 {
                 panic!("Concurrency issue: add_all_outputs should be called right after have_room_for_outputs and ensure room")
@@ -136,33 +137,14 @@ impl ProductionModule {
     }
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct Amount {
-    product: Product,
-    amount: u32,
-}
-
-impl Amount {
-    pub fn new(product: Product, amount: u32) -> Self {
-        Self { product, amount }
-    }
-
-    pub fn product(&self) -> &Product {
-        &self.product
-    }
-    pub fn amount(&self) -> u32 {
-        self.amount
-    }
-}
-
-
 #[cfg(test)]
 mod tests_int {
     use std::collections::HashMap;
 
-    use crate::construct_module::CanHandleNextTurn;
+    use crate::construct::amount::Amount;
     use crate::construct::construct::Construct;
-    use crate::construct::production_module::{Amount, ProductionModule};
+    use crate::construct::production_module::ProductionModule;
+    use crate::construct_module::CanHandleNextTurn;
     use crate::products::Product;
 
     #[test]

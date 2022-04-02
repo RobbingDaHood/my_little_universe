@@ -2,9 +2,10 @@ use std::cmp::min;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
+use crate::construct::amount::Amount;
 
 use crate::construct::construct::ConstructEvenReturnType::{Denied, RequestLoadProcessed, RequestUnloadProcessed};
-use crate::construct::production_module::{Amount, ProductionModule};
+use crate::construct::production_module::ProductionModule;
 use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
 use crate::products::Product;
 
@@ -214,9 +215,10 @@ fn handle_production_input(current_storage: &mut HashMap<Product, u32>, current_
 
 #[cfg(test)]
 mod tests_int {
+    use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
     use crate::construct::construct::ExternalConstructEventType::RequestLoad;
-    use crate::construct::production_module::{Amount, ProductionModule};
+    use crate::construct::production_module::ProductionModule;
     use crate::construct_module::CanHandleNextTurn;
     use crate::construct_module::ConstructModuleType::Production;
     use crate::products::Product;
