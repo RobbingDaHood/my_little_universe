@@ -8,18 +8,6 @@ use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
 use crate::products::Product;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub struct LoadingRequest {
-    product: Product,
-    amount: u32,
-}
-
-impl LoadingRequest {
-    pub fn new(product: Product, amount: u32) -> Self {
-        LoadingRequest { product, amount }
-    }
-}
-
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ConstructEventType {
     Internal(InternalConstructEventType),
     External(ExternalConstructEventType),
@@ -32,8 +20,8 @@ pub enum InternalConstructEventType {
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalConstructEventType {
-    RequestLoad(LoadingRequest),
-    RequestUnload(LoadingRequest),
+    RequestLoad(Amount),
+    RequestUnload(Amount),
     GetConstructState { include_stack: bool },
 }
 
@@ -87,29 +75,29 @@ impl Construct {
                 }
             }
             ConstructEventType::External(ExternalConstructEventType::RequestLoad(request)) => {
-                if self.capacity < self.current_storage.values().sum::<u32>() + request.amount {
+                if self.capacity < self.current_storage.values().sum::<u32>() + request.amount() {
                     let free_capacity : u32 = self.capacity - self.current_storage.values().sum::<u32>();
-                    ConstructEvenReturnType::Denied(format!("Loading request denied. This station only has {:?} free capacity and you tried to load {:?}.", free_capacity, request.amount))
+                    ConstructEvenReturnType::Denied(format!("Loading request denied. This station only has {:?} free capacity and you tried to load {:?}.", free_capacity, request.amount()))
                 } else {
-                    load(&mut self.current_storage, &Amount::new(request.product.clone(), request.amount));
+                    load(&mut self.current_storage, request);
                     return ConstructEvenReturnType::Approved;
                 }
             }
             ConstructEventType::External(ExternalConstructEventType::RequestUnload(request)) => {
                 for stored_product in &mut self.current_storage {
-                    if *stored_product.0 == request.product {
-                        return match stored_product.1.checked_sub(request.amount) {
+                    if stored_product.0 == request.product() {
+                        return match stored_product.1.checked_sub(request.amount()) {
                             Some(_) => {
-                                unload(&mut self.current_storage, &Amount::new(request.product.clone(), request.amount));
+                                unload(&mut self.current_storage, request);
                                 ConstructEvenReturnType::Approved
                             }
                             None => {
-                                ConstructEvenReturnType::Denied(format!("Unloading request denied. Requested {} but there were only {} available.", &request.amount, stored_product.1))
+                                ConstructEvenReturnType::Denied(format!("Unloading request denied. Requested {} but there were only {} available.", &request.amount(), stored_product.1))
                             }
                         };
                     }
                 }
-                ConstructEvenReturnType::Denied(format!("Unloading request denied. This construct does not store any {:?}.", &request.product))
+                ConstructEvenReturnType::Denied(format!("Unloading request denied. This construct does not store any {:?}.", &request.product()))
             }
             ConstructEventType::Internal(InternalConstructEventType::ExecuteTurn(current_turn)) => {
                 self.next_turn(&current_turn);

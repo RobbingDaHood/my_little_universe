@@ -1,11 +1,12 @@
 use serde::{Deserialize, Serialize};
 use crate::construct::construct;
+pub use crate::construct::production_module::Amount as ConstructAmount;
 
 use crate::construct::construct::{ConstructEvenReturnType, ExternalConstructEventType};
 use crate::my_little_universe::MyLittleUniverseReturnValues;
 use crate::products::Product;
 use crate::save_load::{ExternalSaveLoad, ExternalSaveLoadReturnValue};
-use crate::station::{ExternalStationEventType, LoadingRequest, StationEvenReturnType};
+use crate::station::{Amount, ExternalStationEventType, LoadingRequest, StationEvenReturnType};
 use crate::time::{ExternalTimeEventType, TimeEventReturnType};
 
 #[derive(Clone, PartialEq, Debug)]
@@ -159,7 +160,7 @@ impl ExternalCommands {
 
                     if let Some(product_value) = product {
                         if let Ok(amount) = command_parts[4].parse::<u32>() {
-                            return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::RequestLoad(construct::LoadingRequest::new(product_value, amount))));
+                            return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::RequestLoad(ConstructAmount::new(product_value, amount))));
                         }
                     }
                 }
@@ -176,7 +177,7 @@ impl ExternalCommands {
 
                     if let Some(product_value) = product {
                         if let Ok(amount) = command_parts[4].parse::<u32>() {
-                            return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::RequestUnload(construct::LoadingRequest::new(product_value, amount))));
+                            return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::RequestUnload(ConstructAmount::new(product_value, amount))));
                         }
                     }
                 }
