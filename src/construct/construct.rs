@@ -2,9 +2,9 @@ use std::cmp::min;
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use crate::construct::amount::Amount;
 
-use crate::construct::construct::ConstructEvenReturnType::{Denied, RequestLoadProcessed, RequestUnloadProcessed};
+use crate::construct::amount::Amount;
+use crate::construct::construct::ConstructEvenReturnType::{RequestLoadProcessed, RequestUnloadProcessed};
 use crate::construct::production_module::ProductionModule;
 use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
 use crate::products::Product;
@@ -29,14 +29,11 @@ pub enum ExternalConstructEventType {
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ConstructEvenReturnType {
-    Denied(String),
-    Approved,
     RequestLoadProcessed(u32),
     RequestUnloadProcessed(u32),
     ConstructState(Construct),
     TurnExecuted,
 }
-
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Construct {
@@ -281,6 +278,27 @@ mod tests_int {
 
 
     #[test]
+    fn test_parsing() {
+        let mut construct = Construct::new("The base".to_string(), 500);
+        let mut ore_production = ProductionModule::new(
+            "PowerToOre".to_string(),
+            vec![Amount::new(Product::PowerCells, 1)],
+            vec![Amount::new(Product::Ores, 2)],
+            1,
+            0,
+        );
+        let mut metal_production = ProductionModule::new(
+            "OreAndEnergyToMetal".to_string(),
+            vec![Amount::new(Product::PowerCells, 2), Amount::new(Product::Ores, 4)],
+            vec![Amount::new(Product::Metals, 1)],
+            3,
+            0,
+        );
+
+        format!("{:?}", request_state(&mut construct));
+    }
+
+    #[test]
     fn production() {
         let mut construct = Construct::new("The base".to_string(), 500);
         let mut ore_production = ProductionModule::new(
@@ -413,6 +431,14 @@ mod tests_int {
         match construct.handle_event(&ConstructEventType::Internal(InternalConstructEventType::ExecuteTurn(turn))) {
             ConstructEvenReturnType::TurnExecuted => {}
             _ => panic!("request_load failed in test")
+        }
+    }
+
+    fn request_state(construct: &mut Construct) -> Construct {
+        if let ConstructEvenReturnType::ConstructState(construct) = construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::GetConstructState { include_stack: true })) {
+            construct
+        } else {
+            panic!("request_load failed in test")
         }
     }
 }
