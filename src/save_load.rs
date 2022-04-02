@@ -181,7 +181,7 @@ mod tests_int {
         let loaded_universe = load_universe(universe.universe_name().to_string());
         assert_eq!(universe.universe_name(), loaded_universe.universe_name());
         assert_eq!(universe.time(), loaded_universe.time());
-        assert_eq!(universe.constructs(), loaded_universe.constructs());
+        assert_eq!(universe.stations(), loaded_universe.stations());
 
         //Cleanup
         fs::remove_dir_all("./save/save_load_universe/").expect("Had trouble cleanup after save_load_time");

@@ -19,7 +19,7 @@ pub struct MyLittleUniverse {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum MyLittleUniverseReturnValues {
     CouldNotFindStation,
-    CouldNotFindConstruct,
+    CouldNotFindConstruct(String),
 }
 
 impl MyLittleUniverse {
@@ -67,7 +67,7 @@ impl MyLittleUniverse {
                         let return_type = construct.push_event(&ConstructEventType::External(construct_event));
                         ExternalCommandReturnValues::Construct(return_type)
                     }
-                    None => { ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindConstruct) }
+                    None => { ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindConstruct(construct_name)) }
                 };
             }
             ExternalCommands::Save(save_event) => {
@@ -106,7 +106,7 @@ mod tests_int {
     use crate::construct_module::ConstructModuleType::Production;
     use crate::external_commands::ConstructAmount;
     use crate::{ExternalCommandReturnValues, ExternalCommands};
-    use crate::my_little_universe::MyLittleUniverse;
+    use crate::my_little_universe::{MyLittleUniverse, MyLittleUniverseReturnValues};
     use crate::products::Product;
     use crate::time::{ExternalTimeEventType, InternalTimeEventType, TimeEventReturnType, TimeStackState};
 
@@ -155,6 +155,11 @@ mod tests_int {
         assert_eq!(
             ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestUnloadProcessed(2)),
             universe.handle_event(ExternalCommands::Construct("The base".to_string(), ExternalConstructEventType::RequestUnload(Amount::new(Product::Ores, 2))))
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindConstruct("!The base".to_string())),
+            universe.handle_event(ExternalCommands::Construct("!The base".to_string(), ExternalConstructEventType::GetConstructState{include_stack: false})),
         );
     }
 }
