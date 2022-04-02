@@ -95,3 +95,66 @@ impl MyLittleUniverse {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests_int {
+    use std::collections::HashMap;
+    use crate::construct::amount::Amount;
+    use crate::construct::construct::{Construct, ConstructEvenReturnType, ExternalConstructEventType};
+    use crate::construct::production_module::ProductionModule;
+    use crate::construct_module::ConstructModuleType::Production;
+    use crate::external_commands::ConstructAmount;
+    use crate::{ExternalCommandReturnValues, ExternalCommands};
+    use crate::my_little_universe::MyLittleUniverse;
+    use crate::products::Product;
+    use crate::time::{ExternalTimeEventType, InternalTimeEventType, TimeEventReturnType, TimeStackState};
+
+    #[test]
+    fn it_works() {
+        //Setup universe
+        let mut construct = Construct::new("The base".to_string(), 500);
+        let mut ore_production = ProductionModule::new(
+            "PowerToOre".to_string(),
+            vec![ConstructAmount::new(Product::PowerCells, 1)],
+            vec![ConstructAmount::new(Product::Ores, 2)],
+            1,
+            0,
+        );
+        assert_eq!(Ok(()), construct.install(Production(ore_production.clone())));
+
+        let mut constructs: HashMap<String, Construct> = HashMap::new();
+        constructs.insert(construct.name().to_string(), construct);
+
+        let mut universe = MyLittleUniverse::new("universe_name".to_string(), TimeStackState::new(), HashMap::new(), constructs);
+
+        //testing
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestLoadProcessed(0)),
+            universe.handle_event(ExternalCommands::Construct("The base".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 200))))
+        );
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestUnloadProcessed(0)),
+            universe.handle_event(ExternalCommands::Construct("The base".to_string(), ExternalConstructEventType::RequestUnload(Amount::new(Product::Ores, 2))))
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Time(TimeEventReturnType::Received),
+            universe.handle_event(ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(100)))
+        );
+        universe.request_execute_turn();
+        universe.request_execute_turn();
+
+        assert!(
+            matches!(
+                universe.handle_event(ExternalCommands::Construct("The base".to_string(), ExternalConstructEventType::GetConstructState{include_stack: false})),
+                ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState{..})
+            )
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestUnloadProcessed(2)),
+            universe.handle_event(ExternalCommands::Construct("The base".to_string(), ExternalConstructEventType::RequestUnload(Amount::new(Product::Ores, 2))))
+        );
+    }
+}

@@ -109,7 +109,7 @@ impl Construct {
         }
     }
 
-    fn install(&mut self, new_module: ConstructModuleType) -> Result<(), String> {
+    pub fn install(&mut self, new_module: ConstructModuleType) -> Result<(), String> {
         if self.modules.iter()
             .find(|m| m.name().eq(new_module.name()))
             .is_some() {

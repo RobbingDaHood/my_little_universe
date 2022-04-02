@@ -116,7 +116,7 @@ impl TimeStackState {
             let now = Self::epcoh_time();
             let min_instant_where_we_can_switch_turn = self.last_turn_timestamp().checked_add(self.turn_min_duration_in_milli_secs() as u64).unwrap();
 
-            if now > min_instant_where_we_can_switch_turn {
+            if now >= min_instant_where_we_can_switch_turn {
                 self.push_event(&TimeEventType::Internal(InternalTimeEventType::StartedNextTurn));
                 return true;
             }

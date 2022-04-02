@@ -183,7 +183,7 @@ impl ExternalCommands {
                 }
                 return Err(format!("RequestUnload need Product and u32 amount. Got {:?}", command_parts));
             }
-            "ConstructState" => {
+            "GetConstructState" => {
                 if command_parts.len() > 3 {
                     if let Ok(include_stack) = command_parts[3].parse::<bool>() {
                         return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::GetConstructState { include_stack }));
@@ -218,7 +218,8 @@ impl ExternalCommands {
 
 #[cfg(test)]
 mod tests_int {
-    use crate::external_commands::ExternalCommands;
+    use crate::construct::construct::ExternalConstructEventType;
+    use crate::external_commands::{ConstructAmount, ExternalCommands};
     use crate::products::Product;
     use crate::save_load::ExternalSaveLoad;
     use crate::station::{ExternalStationEventType, LoadingRequest};
@@ -237,13 +238,19 @@ mod tests_int {
         assert_eq!(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState { include_stack: true }),
                    ExternalCommands::try_from(&"Time GetTimeStackState".to_string()).unwrap());
 
-
         assert_eq!(ExternalCommands::Station("name".to_string(), ExternalStationEventType::RequestLoad(LoadingRequest::new(Product::PowerCells, 24))),
                    ExternalCommands::try_from(&"Station name RequestLoad PowerCells 24".to_string()).unwrap());
         assert_eq!(ExternalCommands::Station("name".to_string(), ExternalStationEventType::RequestUnload(LoadingRequest::new(Product::Ores, 25))),
                    ExternalCommands::try_from(&"Station name RequestUnload Ores 25".to_string()).unwrap());
         assert_eq!(ExternalCommands::Station("name".to_string(), ExternalStationEventType::GetStationState { include_stack: true }),
                    ExternalCommands::try_from(&"Station name GetStationState".to_string()).unwrap());
+
+        assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::RequestLoad(ConstructAmount::new(Product::PowerCells, 24))),
+                   ExternalCommands::try_from(&"Construct name RequestLoad PowerCells 24".to_string()).unwrap());
+        assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::RequestUnload(ConstructAmount::new(Product::Ores, 25))),
+                   ExternalCommands::try_from(&"Construct name RequestUnload Ores 25".to_string()).unwrap());
+        assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::GetConstructState { include_stack: true }),
+                   ExternalCommands::try_from(&"Construct name GetConstructState".to_string()).unwrap());
 
         assert_eq!(ExternalCommands::Save(ExternalSaveLoad::SaveTheUniverse),
                    ExternalCommands::try_from(&"Save SaveTheUniverse".to_string()).unwrap());
