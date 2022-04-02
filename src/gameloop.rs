@@ -4,7 +4,7 @@ use std::sync::mpsc::{Receiver, Sender};
 
 use crate::external_commands::{ExternalCommandReturnValues, ExternalCommands};
 use crate::save_load::{ExternalSaveLoad, load_or_create_universe};
-use crate::station::{InternalStationEventType, StationEventType, Station};
+use crate::station::{InternalStationEventType, Station, StationEventType};
 use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
 // channel_getter is one channel to receive new channels.
@@ -67,15 +67,21 @@ impl Communicator {
 
 #[cfg(test)]
 mod tests_int {
+    use std::ptr::eq;
     use std::sync::mpsc;
     use std::sync::mpsc::{Receiver, Sender};
     use std::thread;
     use std::time::Duration;
 
-    use crate::external_commands::{ExternalCommandReturnValues, ExternalCommands};
+    use crate::construct::construct::{Construct, ConstructEvenReturnType, ExternalConstructEventType};
+    use crate::construct::construct::ConstructEvenReturnType::ConstructState;
+    use crate::construct_module::ConstructModuleType;
+    use crate::construct_module::ConstructModuleType::Production;
+    use crate::external_commands::{ConstructAmount, ExternalCommandReturnValues, ExternalCommands};
+    use crate::ExternalCommandReturnValues::Construct as ConstructEvent;
     use crate::gameloop::{Channel, Communicator};
     use crate::products::Product;
-    use crate::station::{ExternalStationEventType, LoadingRequest};
+    use crate::station::{Amount, ExternalStationEventType, LoadingRequest};
     use crate::station::StationEvenReturnType::{Approved, StationState};
     use crate::time::ExternalTimeEventType;
     use crate::time::TimeEventReturnType::{Received, StackState};
@@ -167,7 +173,7 @@ mod tests_int {
     }
 
     #[test]
-    fn next_turn_with_stations() {
+    fn next_turn_with_constructs() {
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();
 
@@ -181,50 +187,50 @@ mod tests_int {
             _ => {}
         }
 
-        verify_initial_state_of_station(&main_to_universe_sender, &universe_to_main_receiver);
+        verify_initial_state_of_construct(&main_to_universe_sender, &universe_to_main_receiver);
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 0);
-        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 0, 0, 0);
+        check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, None, None, 0);
 
         send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(1)));
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 1);
-        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 0, 0, 0);
+        check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, None, None, 0);
 
-        send_request_to_station(&main_to_universe_sender, &universe_to_main_receiver, ExternalStationEventType::RequestLoad(LoadingRequest::new(Product::PowerCells, 200)));
-        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 200, 0, 0);
+        send_load_request_to_construct(&main_to_universe_sender, &universe_to_main_receiver, ConstructAmount::new(Product::PowerCells, 200));
+        check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&200), None, 0);
 
         send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(2)));
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 2);
-        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 199, 2, 3);
+        check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&199), None, 3);
 
         send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(3)));
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 3);
-        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 198, 4, 4);
+        check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&198), Some(&2), 4);
 
         send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(10)));
 
         thread::sleep(Duration::from_secs(1));
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 10);
-        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 191, 18, 11);
+        check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&191), Some(&16), 11);
 
-        send_request_to_station(&main_to_universe_sender, &universe_to_main_receiver, ExternalStationEventType::RequestUnload(LoadingRequest::new(Product::Ores, 8)));
-        check_station_state(&main_to_universe_sender, &universe_to_main_receiver, 191, 10, 11);
+        send_unload_request_to_construct(&main_to_universe_sender, &universe_to_main_receiver, ConstructAmount::new(Product::Ores, 8));
+        check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&191), Some(&8), 11);
     }
 
-    fn send_request_to_station(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: ExternalStationEventType) {
-        match main_to_universe_sender.send(ExternalCommands::Station("simple_station".to_string(),request)) {
+    fn send_load_request_to_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: ConstructAmount) {
+        match main_to_universe_sender.send(ExternalCommands::Construct("The_base".to_string(), ExternalConstructEventType::RequestLoad(request))) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
-            ExternalCommandReturnValues::Station(station_return) => {
+            ConstructEvent(station_return) => {
                 match station_return {
-                    Approved => {}
+                    ConstructEvenReturnType::RequestLoadProcessed(_) => {}
                     _ => assert!(false)
                 }
             }
@@ -232,31 +238,62 @@ mod tests_int {
         }
     }
 
-    fn verify_initial_state_of_station(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>) {
-        match main_to_universe_sender.send(ExternalCommands::Station("simple_station".to_string(),ExternalStationEventType::GetStationState { include_stack: true })) {
+    fn send_unload_request_to_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: ConstructAmount) {
+        match main_to_universe_sender.send(ExternalCommands::Construct("The_base".to_string(), ExternalConstructEventType::RequestUnload(request))) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
-            ExternalCommandReturnValues::Station(station_return) => {
+            ExternalCommandReturnValues::Construct(construct_return) => {
+                match construct_return {
+                    ConstructEvenReturnType::RequestUnloadProcessed(_) => {}
+                    _ => assert!(false)
+                }
+            }
+            _ => assert!(false)
+        }
+    }
+
+    fn verify_initial_state_of_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>) {
+        match main_to_universe_sender.send(ExternalCommands::Construct("The_base".to_string(), ExternalConstructEventType::GetConstructState { include_stack: true })) {
+            Err(e) => println!("Sender errored: {}", e),
+            _ => {}
+        }
+
+        match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
+            ConstructEvent(station_return) => {
                 match station_return {
-                    StationState(station_state) => {
-                        assert_eq!("simple_station", station_state.name());
-                        assert_eq!(1, station_state.event_stack().len());
+                    ConstructState(construct_state) => {
+                        assert_eq!("The_base", construct_state.name());
+                        assert_eq!(1, construct_state.event_stack().len());
 
-                        assert_eq!(1, station_state.production().production_time());
-                        assert_eq!(0, station_state.production().production_trigger_time());
+                        assert_eq!(500, construct_state.capacity());
+                        assert_eq!(1, construct_state.modules().len());
+                        assert_eq!(0, construct_state.current_storage().values().sum::<u32>());
 
-                        assert_eq!(1, station_state.production().input().get(0).unwrap().amount());
-                        assert_eq!(0, station_state.production().input().get(0).unwrap().current_storage());
-                        assert_eq!(&Product::PowerCells, station_state.production().input().get(0).unwrap().product());
-                        assert_eq!(10000, station_state.production().input().get(0).unwrap().max_storage());
+                        let production = construct_state.modules().iter()
+                            .filter_map(|p|
+                                match p {
+                                    ConstructModuleType::Production(production) => {
+                                        if production.name().eq("PowerToOre") {
+                                            Some(production)
+                                        } else {
+                                            None
+                                        }
+                                    }
+                                    _ => { None }
+                                })
+                            .next()
+                            .unwrap();
 
-                        assert_eq!(2, station_state.production().output().get(0).unwrap().amount());
-                        assert_eq!(0, station_state.production().output().get(0).unwrap().current_storage());
-                        assert_eq!(&Product::Ores, station_state.production().output().get(0).unwrap().product());
-                        assert_eq!(20000, station_state.production().output().get(0).unwrap().max_storage());
+
+                        assert_eq!(0, production.production_trigger_time());
+                        assert_eq!(1, production.production_time());
+                        assert_eq!(false, production.stored_output());
+                        assert_eq!(false, production.stored_input());
+                        assert_eq!(&vec![ConstructAmount::new(Product::PowerCells, 1); 1], production.input());
+                        assert_eq!(&vec![ConstructAmount::new(Product::Ores, 2); 1], production.output());
                     }
                     _ => assert!(false)
                 }
@@ -265,19 +302,19 @@ mod tests_int {
         }
     }
 
-    fn check_station_state(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, expected_first_input_current_storage: u32, expected_first_output_current_storage: u32, production_trigger_time: u64) {
-        match main_to_universe_sender.send(ExternalCommands::Station("simple_station".to_string(),ExternalStationEventType::GetStationState { include_stack: true })) {
+    fn check_construct_state(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, expected_first_input_current_storage: Option<&u32>, expected_first_output_current_storage: Option<&u32>, production_trigger_time: u64) {
+        match main_to_universe_sender.send(ExternalCommands::Construct("The_base".to_string(), ExternalConstructEventType::GetConstructState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
         }
 
         match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
-            ExternalCommandReturnValues::Station(station_return) => {
-                match station_return {
-                    StationState(station_state) => {
-                        assert_eq!(expected_first_input_current_storage, station_state.production().input().get(0).unwrap().current_storage());
-                        assert_eq!(expected_first_output_current_storage, station_state.production().output().get(0).unwrap().current_storage());
-                        assert_eq!(production_trigger_time, station_state.production().production_trigger_time());
+            ConstructEvent(construct_return) => {
+                match construct_return {
+                    ConstructState(construct_state) => {
+                        assert_eq!(expected_first_input_current_storage, construct_state.current_storage().get(&Product::PowerCells));
+                        assert_eq!(expected_first_output_current_storage, construct_state.current_storage().get(&Product::Ores));
+                        assert_eq!(production_trigger_time, if let Production(production_module) = construct_state.modules().get(0).unwrap() { production_module.production_trigger_time() } else { panic!("SHOULD NOT HAPPEN!") });
                     }
                     _ => assert!(false)
                 }

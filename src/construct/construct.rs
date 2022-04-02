@@ -58,6 +58,13 @@ impl Construct {
     pub fn current_storage(&self) -> &HashMap<Product, u32> {
         &self.current_storage
     }
+    pub fn modules(&self) -> &Vec<ConstructModuleType> {
+        &self.modules
+    }
+    pub fn event_stack(&self) -> &Vec<ConstructEventType> {
+        &self.event_stack
+    }
+
 
     pub fn push_event(&mut self, event: &ConstructEventType) -> ConstructEvenReturnType {
         self.event_stack.push(event.clone());

@@ -12,7 +12,6 @@ use crate::time::{ExternalTimeEventType, TimeEventReturnType};
 #[derive(Clone, PartialEq, Debug)]
 pub enum ExternalCommands {
     Time(ExternalTimeEventType),
-    Station(String, ExternalStationEventType),
     Save(ExternalSaveLoad),
     Construct(String, ExternalConstructEventType),
 }
@@ -20,7 +19,6 @@ pub enum ExternalCommands {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalCommandReturnValues {
     Time(TimeEventReturnType),
-    Station(StationEvenReturnType),
     Save(ExternalSaveLoadReturnValue),
     Universe(MyLittleUniverseReturnValues),
     Construct(ConstructEvenReturnType),
@@ -38,7 +36,6 @@ impl TryFrom<&String> for ExternalCommands {
 
         return match command_parts[0] {
             "Time" => { Self::parse_time(command_parts) }
-            "Station" => { Self::parse_station(command_parts) }
             "Construct" => { Self::parse_construct(command_parts) }
             "Save" => { Self::parse_save_load(command_parts) }
             _ => { Err(format!("Unknown command, got: {}", value)) }
@@ -82,62 +79,6 @@ impl ExternalCommands {
                 return Err(format!("GetTimeStackState optinal booĺ include_stack. Got {:?}", command_parts));
             }
             _ => Err(format!("Unknown Time command. Got {:?}", command_parts))
-        }
-    }
-
-    fn parse_station(command_parts: Vec<&str>) -> Result<Self, String> {
-        if command_parts.len() < 3 {
-            return Err(format!("Station command needs at least the station name and command name. Got {:?}", command_parts));
-        }
-
-        let station_name = command_parts[1];
-
-        match command_parts[2] {
-            "RequestLoad" => {
-                if command_parts.len() > 4 {
-                    let product = match command_parts[3] {
-                        "Ores" => { Some(Product::Ores) }
-                        "Metals" => { Some(Product::Metals) }
-                        "PowerCells" => { Some(Product::PowerCells) }
-                        _ => { None }
-                    };
-
-                    if let Some(product_value) = product {
-                        if let Ok(amount) = command_parts[4].parse::<u32>() {
-                            return Ok(ExternalCommands::Station(station_name.to_string(), ExternalStationEventType::RequestLoad(LoadingRequest::new(product_value, amount))));
-                        }
-                    }
-                }
-                return Err(format!("RequestLoad need Product and u32 amount. Got {:?}", command_parts));
-            }
-            "RequestUnload" => {
-                if command_parts.len() > 4 {
-                    let product = match command_parts[3] {
-                        "Ores" => { Some(Product::Ores) }
-                        "Metals" => { Some(Product::Metals) }
-                        "PowerCells" => { Some(Product::PowerCells) }
-                        _ => { None }
-                    };
-
-                    if let Some(product_value) = product {
-                        if let Ok(amount) = command_parts[4].parse::<u32>() {
-                            return Ok(ExternalCommands::Station(station_name.to_string(), ExternalStationEventType::RequestUnload(LoadingRequest::new(product_value, amount))));
-                        }
-                    }
-                }
-                return Err(format!("RequestUnload need Product and u32 amount. Got {:?}", command_parts));
-            }
-            "GetStationState" => {
-                if command_parts.len() > 3 {
-                    if let Ok(include_stack) = command_parts[3].parse::<bool>() {
-                        return Ok(ExternalCommands::Station(station_name.to_string(), ExternalStationEventType::GetStationState { include_stack }));
-                    }
-                } else {
-                    return Ok(ExternalCommands::Station(station_name.to_string(), ExternalStationEventType::GetStationState { include_stack: true }));
-                }
-                return Err(format!("GetStationState optinal booĺ include_stack. Got {:?}", command_parts));
-            }
-            _ => Err(format!("Unknown Station command. Got {:?}", command_parts))
         }
     }
 
@@ -237,13 +178,6 @@ mod tests_int {
                    ExternalCommands::try_from(&"Time SetSpeed 23".to_string()).unwrap());
         assert_eq!(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState { include_stack: true }),
                    ExternalCommands::try_from(&"Time GetTimeStackState".to_string()).unwrap());
-
-        assert_eq!(ExternalCommands::Station("name".to_string(), ExternalStationEventType::RequestLoad(LoadingRequest::new(Product::PowerCells, 24))),
-                   ExternalCommands::try_from(&"Station name RequestLoad PowerCells 24".to_string()).unwrap());
-        assert_eq!(ExternalCommands::Station("name".to_string(), ExternalStationEventType::RequestUnload(LoadingRequest::new(Product::Ores, 25))),
-                   ExternalCommands::try_from(&"Station name RequestUnload Ores 25".to_string()).unwrap());
-        assert_eq!(ExternalCommands::Station("name".to_string(), ExternalStationEventType::GetStationState { include_stack: true }),
-                   ExternalCommands::try_from(&"Station name GetStationState".to_string()).unwrap());
 
         assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::RequestLoad(ConstructAmount::new(Product::PowerCells, 24))),
                    ExternalCommands::try_from(&"Construct name RequestLoad PowerCells 24".to_string()).unwrap());

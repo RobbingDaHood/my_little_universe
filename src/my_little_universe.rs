@@ -11,7 +11,6 @@ use crate::time::{InternalTimeEventType, TimeEventReturnType, TimeEventType, Tim
 
 pub struct MyLittleUniverse {
     time: TimeStackState,
-    stations: HashMap<String, Station>,
     constructs: HashMap<String, Construct>,
     universe_name: String,
 }
@@ -23,10 +22,9 @@ pub enum MyLittleUniverseReturnValues {
 }
 
 impl MyLittleUniverse {
-    pub fn new(universe_name: String, time: TimeStackState, stations: HashMap<String, Station>, constructs: HashMap<String, Construct>) -> Self {
+    pub fn new(universe_name: String, time: TimeStackState, constructs: HashMap<String, Construct>) -> Self {
         MyLittleUniverse {
             time,
-            stations,
             universe_name,
             constructs,
         }
@@ -36,9 +34,6 @@ impl MyLittleUniverse {
         &self.time
     }
 
-    pub fn stations(&self) -> &HashMap<String, Station> {
-        &self.stations
-    }
     pub fn constructs(&self) -> &HashMap<String, Construct> {
         &self.constructs
     }
@@ -51,15 +46,6 @@ impl MyLittleUniverse {
             ExternalCommands::Time(time_event) => {
                 let return_type = self.time.push_event(&TimeEventType::External(time_event));
                 ExternalCommandReturnValues::Time(return_type)
-            }
-            ExternalCommands::Station(station_name, station_event) => {
-                return match self.stations.get_mut(&station_name) {
-                    Some(station) => {
-                        let return_type = station.push_event(&StationEventType::External(station_event));
-                        ExternalCommandReturnValues::Station(return_type)
-                    }
-                    None => { ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindStation) }
-                };
             }
             ExternalCommands::Construct(construct_name, construct_event) => {
                 return match self.constructs.get_mut(&construct_name) {
@@ -85,9 +71,6 @@ impl MyLittleUniverse {
 
     pub fn request_execute_turn(&mut self) {
         if self.time.request_execute_turn() {
-            for station in self.stations.values_mut() {
-                station.push_event(&StationEventType::Internal(InternalStationEventType::ExecuteTurn(self.time.turn())));
-            }
             for construct in self.constructs.values_mut() {
                 construct.push_event(&ConstructEventType::Internal(InternalConstructEventType::ExecuteTurn(self.time.turn())));
             }
@@ -100,12 +83,13 @@ impl MyLittleUniverse {
 #[cfg(test)]
 mod tests_int {
     use std::collections::HashMap;
+
+    use crate::{ExternalCommandReturnValues, ExternalCommands};
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ExternalConstructEventType};
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
     use crate::external_commands::ConstructAmount;
-    use crate::{ExternalCommandReturnValues, ExternalCommands};
     use crate::my_little_universe::{MyLittleUniverse, MyLittleUniverseReturnValues};
     use crate::products::Product;
     use crate::time::{ExternalTimeEventType, InternalTimeEventType, TimeEventReturnType, TimeStackState};
@@ -126,7 +110,7 @@ mod tests_int {
         let mut constructs: HashMap<String, Construct> = HashMap::new();
         constructs.insert(construct.name().to_string(), construct);
 
-        let mut universe = MyLittleUniverse::new("universe_name".to_string(), TimeStackState::new(), HashMap::new(), constructs);
+        let mut universe = MyLittleUniverse::new("universe_name".to_string(), TimeStackState::new(), constructs);
 
         //testing
         assert_eq!(
@@ -159,7 +143,7 @@ mod tests_int {
 
         assert_eq!(
             ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindConstruct("!The base".to_string())),
-            universe.handle_event(ExternalCommands::Construct("!The base".to_string(), ExternalConstructEventType::GetConstructState{include_stack: false})),
+            universe.handle_event(ExternalCommands::Construct("!The base".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })),
         );
     }
 }
