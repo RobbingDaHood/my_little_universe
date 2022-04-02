@@ -6,10 +6,9 @@ use std::path::Path;
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use crate::construct::construct::Construct;
 
+use crate::construct::construct::Construct;
 use crate::my_little_universe::MyLittleUniverse;
-use crate::station::Station;
 use crate::time::TimeStackState;
 use crate::universe_generator::{generate_performance_test_universe, generate_simple_universe};
 
@@ -48,16 +47,6 @@ fn save_file_path(universe_name: &String) -> String {
     let path = format!("./save/{}/", universe_name);
     create_dir_all(&path).expect("Hard trouble creating save game folder.");
     path
-}
-
-fn load_station(universe_name: &String, station_name: &String) -> Station {
-    let file_path = format!("{}{}{}.json", save_file_path(&universe_name), "stations/", &station_name);
-    let mut file = File::open(&file_path)
-        .expect(&format!("Filed to open station save file, got {}", &file_path));
-    let mut content = String::new();
-    file.read_to_string(&mut content)
-        .expect("Failed to load time data");
-    serde_json::from_str(&content).expect("Fauled to parse loaded station save file")
 }
 
 impl MyLittleUniverse {
@@ -99,7 +88,7 @@ fn load_constructs(universe_name: &String) -> HashMap<String, Construct> {
     let constructs: HashMap<String, Construct> = serde_json::from_str(&content).expect("Failed to parse loaded constructs save file");
 
     if constructs.len() < 1 {
-        println!("No stations were loaded, that is likely a mistake.")
+        println!("No constructs were loaded, that is likely a mistake.")
     }
     constructs
 }
@@ -121,8 +110,7 @@ mod tests_int {
 
     use crate::my_little_universe;
     use crate::products::Product;
-    use crate::save_load::{load_or_create_universe, load_station, load_time, load_universe};
-    use crate::station::{Amount, Production, Station};
+    use crate::save_load::{load_or_create_universe, load_time, load_universe};
     use crate::time::TimeStackState;
     use crate::universe_generator::generate_simple_universe;
 

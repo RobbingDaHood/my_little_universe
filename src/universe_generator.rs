@@ -6,7 +6,6 @@ use crate::construct::production_module::ProductionModule;
 use crate::construct_module::ConstructModuleType::Production as ProductionModuleType;
 use crate::my_little_universe::MyLittleUniverse;
 use crate::products::Product;
-use crate::station::StationEvenReturnType::StationState;
 use crate::time::TimeStackState;
 
 pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {

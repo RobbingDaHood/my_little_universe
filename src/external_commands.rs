@@ -1,12 +1,11 @@
 use serde::{Deserialize, Serialize};
-use crate::construct::construct;
-pub use crate::construct::amount::Amount as ConstructAmount;
 
+pub use crate::construct::amount::Amount;
+use crate::construct::construct;
 use crate::construct::construct::{ConstructEvenReturnType, ExternalConstructEventType};
 use crate::my_little_universe::MyLittleUniverseReturnValues;
 use crate::products::Product;
 use crate::save_load::{ExternalSaveLoad, ExternalSaveLoadReturnValue};
-use crate::station::{Amount, ExternalStationEventType, LoadingRequest, StationEvenReturnType};
 use crate::time::{ExternalTimeEventType, TimeEventReturnType};
 
 #[derive(Clone, PartialEq, Debug)]
@@ -101,7 +100,7 @@ impl ExternalCommands {
 
                     if let Some(product_value) = product {
                         if let Ok(amount) = command_parts[4].parse::<u32>() {
-                            return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::RequestLoad(ConstructAmount::new(product_value, amount))));
+                            return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::RequestLoad(Amount::new(product_value, amount))));
                         }
                     }
                 }
@@ -118,7 +117,7 @@ impl ExternalCommands {
 
                     if let Some(product_value) = product {
                         if let Ok(amount) = command_parts[4].parse::<u32>() {
-                            return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::RequestUnload(ConstructAmount::new(product_value, amount))));
+                            return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::RequestUnload(Amount::new(product_value, amount))));
                         }
                     }
                 }
@@ -160,10 +159,9 @@ impl ExternalCommands {
 #[cfg(test)]
 mod tests_int {
     use crate::construct::construct::ExternalConstructEventType;
-    use crate::external_commands::{ConstructAmount, ExternalCommands};
+    use crate::external_commands::{Amount, ExternalCommands};
     use crate::products::Product;
     use crate::save_load::ExternalSaveLoad;
-    use crate::station::{ExternalStationEventType, LoadingRequest};
     use crate::time::ExternalTimeEventType;
 
     #[test]
@@ -179,9 +177,9 @@ mod tests_int {
         assert_eq!(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState { include_stack: true }),
                    ExternalCommands::try_from(&"Time GetTimeStackState".to_string()).unwrap());
 
-        assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::RequestLoad(ConstructAmount::new(Product::PowerCells, 24))),
+        assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 24))),
                    ExternalCommands::try_from(&"Construct name RequestLoad PowerCells 24".to_string()).unwrap());
-        assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::RequestUnload(ConstructAmount::new(Product::Ores, 25))),
+        assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::RequestUnload(Amount::new(Product::Ores, 25))),
                    ExternalCommands::try_from(&"Construct name RequestUnload Ores 25".to_string()).unwrap());
         assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::GetConstructState { include_stack: true }),
                    ExternalCommands::try_from(&"Construct name GetConstructState".to_string()).unwrap());

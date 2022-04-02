@@ -4,7 +4,6 @@ use std::sync::mpsc::{Receiver, Sender};
 
 use crate::external_commands::{ExternalCommandReturnValues, ExternalCommands};
 use crate::save_load::{ExternalSaveLoad, load_or_create_universe};
-use crate::station::{InternalStationEventType, Station, StationEventType};
 use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
 // channel_getter is one channel to receive new channels.
@@ -77,12 +76,10 @@ mod tests_int {
     use crate::construct::construct::ConstructEvenReturnType::ConstructState;
     use crate::construct_module::ConstructModuleType;
     use crate::construct_module::ConstructModuleType::Production;
-    use crate::external_commands::{ConstructAmount, ExternalCommandReturnValues, ExternalCommands};
+    use crate::external_commands::{Amount, ExternalCommandReturnValues, ExternalCommands};
     use crate::ExternalCommandReturnValues::Construct as ConstructEvent;
     use crate::gameloop::{Channel, Communicator};
     use crate::products::Product;
-    use crate::station::{Amount, ExternalStationEventType, LoadingRequest};
-    use crate::station::StationEvenReturnType::{Approved, StationState};
     use crate::time::ExternalTimeEventType;
     use crate::time::TimeEventReturnType::{Received, StackState};
 
@@ -197,7 +194,7 @@ mod tests_int {
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 1);
         check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, None, None, 0);
 
-        send_load_request_to_construct(&main_to_universe_sender, &universe_to_main_receiver, ConstructAmount::new(Product::PowerCells, 200));
+        send_load_request_to_construct(&main_to_universe_sender, &universe_to_main_receiver, Amount::new(Product::PowerCells, 200));
         check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&200), None, 0);
 
         send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(2)));
@@ -217,11 +214,11 @@ mod tests_int {
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 10);
         check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&191), Some(&16), 11);
 
-        send_unload_request_to_construct(&main_to_universe_sender, &universe_to_main_receiver, ConstructAmount::new(Product::Ores, 8));
+        send_unload_request_to_construct(&main_to_universe_sender, &universe_to_main_receiver, Amount::new(Product::Ores, 8));
         check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&191), Some(&8), 11);
     }
 
-    fn send_load_request_to_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: ConstructAmount) {
+    fn send_load_request_to_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: Amount) {
         match main_to_universe_sender.send(ExternalCommands::Construct("The_base".to_string(), ExternalConstructEventType::RequestLoad(request))) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
@@ -238,7 +235,7 @@ mod tests_int {
         }
     }
 
-    fn send_unload_request_to_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: ConstructAmount) {
+    fn send_unload_request_to_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: Amount) {
         match main_to_universe_sender.send(ExternalCommands::Construct("The_base".to_string(), ExternalConstructEventType::RequestUnload(request))) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
@@ -292,8 +289,8 @@ mod tests_int {
                         assert_eq!(1, production.production_time());
                         assert_eq!(false, production.stored_output());
                         assert_eq!(false, production.stored_input());
-                        assert_eq!(&vec![ConstructAmount::new(Product::PowerCells, 1); 1], production.input());
-                        assert_eq!(&vec![ConstructAmount::new(Product::Ores, 2); 1], production.output());
+                        assert_eq!(&vec![Amount::new(Product::PowerCells, 1); 1], production.input());
+                        assert_eq!(&vec![Amount::new(Product::Ores, 2); 1], production.output());
                     }
                     _ => assert!(false)
                 }

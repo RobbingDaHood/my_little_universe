@@ -17,7 +17,6 @@ use crate::gameloop::{Channel, Communicator};
 mod time;
 mod gameloop;
 mod products;
-mod station;
 mod external_commands;
 mod save_load;
 mod my_little_universe;

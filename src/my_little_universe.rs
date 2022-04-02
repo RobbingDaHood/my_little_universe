@@ -6,7 +6,6 @@ use crate::{Channel, ExternalCommandReturnValues, ExternalCommands};
 use crate::construct::construct::{Construct, ConstructEventType, InternalConstructEventType};
 use crate::construct_module::ConstructModuleType;
 use crate::save_load::ExternalSaveLoad;
-use crate::station::{InternalStationEventType, Station, StationEvenReturnType, StationEventType};
 use crate::time::{InternalTimeEventType, TimeEventReturnType, TimeEventType, TimeStackState};
 
 pub struct MyLittleUniverse {
@@ -89,7 +88,6 @@ mod tests_int {
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ExternalConstructEventType};
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
-    use crate::external_commands::ConstructAmount;
     use crate::my_little_universe::{MyLittleUniverse, MyLittleUniverseReturnValues};
     use crate::products::Product;
     use crate::time::{ExternalTimeEventType, InternalTimeEventType, TimeEventReturnType, TimeStackState};
@@ -100,8 +98,8 @@ mod tests_int {
         let mut construct = Construct::new("The base".to_string(), 500);
         let mut ore_production = ProductionModule::new(
             "PowerToOre".to_string(),
-            vec![ConstructAmount::new(Product::PowerCells, 1)],
-            vec![ConstructAmount::new(Product::Ores, 2)],
+            vec![Amount::new(Product::PowerCells, 1)],
+            vec![Amount::new(Product::Ores, 2)],
             1,
             0,
         );
