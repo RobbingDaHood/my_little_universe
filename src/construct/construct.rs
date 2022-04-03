@@ -45,12 +45,12 @@ pub struct Construct {
     current_storage: HashMap<Product, u32>,
     modules: Vec<ConstructModuleType>,
     event_stack: Vec<ConstructEventType>,
-    position: ConstructPositionState,
+    pub(crate) position: ConstructPositionState,
 }
 
 impl Construct {
     pub fn new(name: String, capacity: u32) -> Self {
-        Construct { name: name.clone(), capacity, current_storage: HashMap::new(), modules: Vec::new(), event_stack: Vec::new(), position: ConstructPositionState::new(ConstructPosition::Nowhere, name.clone()) }
+        Construct { name: name.clone(), capacity, current_storage: HashMap::new(), modules: Vec::new(), event_stack: Vec::new(), position: ConstructPositionState::new(name.clone()) }
     }
 
     pub fn name(&self) -> &str {
@@ -67,6 +67,9 @@ impl Construct {
     }
     pub fn event_stack(&self) -> &Vec<ConstructEventType> {
         &self.event_stack
+    }
+    pub fn position(&self) -> &ConstructPositionState {
+        &self.position
     }
 
 
@@ -305,7 +308,7 @@ mod tests_int {
 
         assert_eq!(Nowhere, *construct.position.position());
         assert_eq!(
-            ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::ConstructCannotDockAtItself),
+            ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Construct cannot dock with itself.".to_string())),
             construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock(construct.name().to_string()))))
         );
         assert_eq!(Nowhere, *construct.position.position());

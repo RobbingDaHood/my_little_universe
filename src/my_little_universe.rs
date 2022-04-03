@@ -9,7 +9,7 @@ use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
 pub struct MyLittleUniverse {
     time: TimeStackState,
-    constructs: HashMap<String, Construct>,
+    pub(crate) constructs: HashMap<String, Construct>,
     universe_name: String,
 }
 
