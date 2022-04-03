@@ -2,11 +2,10 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{Channel, ExternalCommandReturnValues, ExternalCommands};
+use crate::{ExternalCommandReturnValues, ExternalCommands};
 use crate::construct::construct::{Construct, ConstructEventType, InternalConstructEventType};
-use crate::construct_module::ConstructModuleType;
 use crate::save_load::ExternalSaveLoad;
-use crate::time::{InternalTimeEventType, TimeEventReturnType, TimeEventType, TimeStackState};
+use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
 pub struct MyLittleUniverse {
     time: TimeStackState,
@@ -90,13 +89,13 @@ mod tests_int {
     use crate::construct_module::ConstructModuleType::Production;
     use crate::my_little_universe::{MyLittleUniverse, MyLittleUniverseReturnValues};
     use crate::products::Product;
-    use crate::time::{ExternalTimeEventType, InternalTimeEventType, TimeEventReturnType, TimeStackState};
+    use crate::time::{ExternalTimeEventType, TimeEventReturnType, TimeStackState};
 
     #[test]
     fn it_works() {
         //Setup universe
         let mut construct = Construct::new("The base".to_string(), 500);
-        let mut ore_production = ProductionModule::new(
+        let ore_production = ProductionModule::new(
             "PowerToOre".to_string(),
             vec![Amount::new(Product::PowerCells, 1)],
             vec![Amount::new(Product::Ores, 2)],

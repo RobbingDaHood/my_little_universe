@@ -3,14 +3,14 @@ use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 
 use crate::external_commands::{ExternalCommandReturnValues, ExternalCommands};
-use crate::save_load::{ExternalSaveLoad, load_or_create_universe};
-use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
+use crate::MainConfig;
+use crate::save_load::load_or_create_universe;
 
 // channel_getter is one channel to receive new channels.
 // Then the loop will listen for events from that channel to execute.
-fn game_loop(channel_getter: Receiver<Channel>, universe_name: String) {
+fn game_loop(channel_getter: Receiver<Channel>, config: MainConfig) {
     thread::spawn(move || {
-        let mut universe = load_or_create_universe(universe_name);
+        let mut universe = load_or_create_universe(&config);
         println!("Loaded universe with name {}", universe.universe_name());
         let mut channels = Vec::new();
 
@@ -56,39 +56,45 @@ impl Channel {
 }
 
 impl Communicator {
-    pub fn new(universe_name: String) -> Self {
+    pub fn new(config: &MainConfig) -> Self {
         let (channel_sender, channel_getter): (Sender<Channel>, Receiver<Channel>) = mpsc::channel();
         let stack = Communicator { channel_sender };
-        game_loop(channel_getter, universe_name);
+        game_loop(channel_getter, config.clone());
         stack
     }
 }
 
 #[cfg(test)]
 mod tests_int {
-    use std::ptr::eq;
     use std::sync::mpsc;
     use std::sync::mpsc::{Receiver, Sender};
     use std::thread;
     use std::time::Duration;
 
-    use crate::construct::construct::{Construct, ConstructEvenReturnType, ExternalConstructEventType};
+    use crate::construct::construct::{ConstructEvenReturnType, ExternalConstructEventType};
     use crate::construct::construct::ConstructEvenReturnType::ConstructState;
     use crate::construct_module::ConstructModuleType;
     use crate::construct_module::ConstructModuleType::Production;
     use crate::external_commands::{Amount, ExternalCommandReturnValues, ExternalCommands};
     use crate::ExternalCommandReturnValues::Construct as ConstructEvent;
     use crate::gameloop::{Channel, Communicator};
+    use crate::MainConfig;
     use crate::products::Product;
     use crate::time::ExternalTimeEventType;
     use crate::time::TimeEventReturnType::{Received, StackState};
 
     #[test]
     fn it_works() {
+        let main_config = MainConfig {
+            address : "random".to_string(),
+            universe_name : "testing".to_string(),
+            config_name : "default".to_string()
+        };
+
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();
 
-        let time_stack = Communicator::new("testing".to_string());
+        let time_stack = Communicator::new(&main_config);
         let channel = Channel {
             getter: main_to_universe_receiver,
             returner: universe_to_main_sender,
@@ -108,10 +114,16 @@ mod tests_int {
 
     #[test]
     fn next_turn() {
+        let main_config = MainConfig {
+            address : "random".to_string(),
+            universe_name : "testing".to_string(),
+            config_name : "default".to_string()
+        };
+
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();
 
-        let time_stack = Communicator::new("testing".to_string());
+        let time_stack = Communicator::new(&main_config);
         let channel = Channel {
             getter: main_to_universe_receiver,
             returner: universe_to_main_sender,
@@ -136,10 +148,15 @@ mod tests_int {
 
     #[test]
     fn next_turn_without_limit() {
+        let main_config = MainConfig {
+            address : "random".to_string(),
+            universe_name : "testing".to_string(),
+            config_name : "default".to_string()
+        };
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();
 
-        let time_stack = Communicator::new("testing".to_string());
+        let time_stack = Communicator::new(&main_config);
         let channel = Channel {
             getter: main_to_universe_receiver,
             returner: universe_to_main_sender,
@@ -171,10 +188,15 @@ mod tests_int {
 
     #[test]
     fn next_turn_with_constructs() {
+        let main_config = MainConfig {
+            address : "random".to_string(),
+            universe_name : "testing".to_string(),
+            config_name : "default".to_string()
+        };
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();
 
-        let time_stack = Communicator::new("testing".to_string());
+        let time_stack = Communicator::new(&main_config);
         let channel = Channel {
             getter: main_to_universe_receiver,
             returner: universe_to_main_sender,
@@ -279,7 +301,6 @@ mod tests_int {
                                             None
                                         }
                                     }
-                                    _ => { None }
                                 })
                             .next()
                             .unwrap();
@@ -311,7 +332,7 @@ mod tests_int {
                     ConstructState(construct_state) => {
                         assert_eq!(expected_first_input_current_storage, construct_state.current_storage().get(&Product::PowerCells));
                         assert_eq!(expected_first_output_current_storage, construct_state.current_storage().get(&Product::Ores));
-                        assert_eq!(production_trigger_time, if let Production(production_module) = construct_state.modules().get(0).unwrap() { production_module.production_trigger_time() } else { panic!("SHOULD NOT HAPPEN!") });
+                        assert_eq!(production_trigger_time, if let Some(Production(production_module)) = construct_state.modules().get(0) { production_module.production_trigger_time() } else { unreachable!() });
                     }
                     _ => assert!(false)
                 }

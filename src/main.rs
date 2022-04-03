@@ -27,12 +27,26 @@ pub mod construct_module;
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct MainConfig {
     address: String,
+    universe_name: String,
+    config_name: String,
+}
+
+impl MainConfig {
+    pub fn address(&self) -> &str {
+        &self.address
+    }
+    pub fn universe_name(&self) -> &str {
+        &self.universe_name
+    }
+    pub fn config_name(&self) -> &str {
+        &self.config_name
+    }
 }
 
 fn main() {
-    let (main_config, universe_name) = read_main_config_file();
+    let main_config = read_main_config_file();
 
-    let (listener, main_to_universe_sender, universe_to_main_receiver) = setup_game(&main_config, universe_name);
+    let (listener, main_to_universe_sender, universe_to_main_receiver) = setup_game(&main_config);
 
     for stream in listener.incoming() {
         match stream {
@@ -50,7 +64,7 @@ fn main() {
     drop(listener);
 }
 
-fn read_main_config_file() -> (MainConfig, String) {
+fn read_main_config_file() -> MainConfig {
     let args: Vec<String> = env::args().collect();
 
     let universe_name = if args.len() > 1 {
@@ -73,8 +87,12 @@ fn read_main_config_file() -> (MainConfig, String) {
     let main_setup_config = fs::read_to_string(main_config_path)
         .expect("Something went wrong reading the file");
 
-    let main_config: MainConfig = serde_json::from_str(main_setup_config.as_str()).unwrap();
-    (main_config, universe_name.clone())
+    let mut main_config: MainConfig = serde_json::from_str(main_setup_config.as_str()).unwrap();
+
+    main_config.universe_name = universe_name.clone();
+    main_config.config_name = config_name.to_string();
+
+    main_config
 }
 
 fn handle_request(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, stream: &mut TcpStream) {
@@ -128,10 +146,10 @@ fn handle_request(main_to_universe_sender: &Sender<ExternalCommands>, universe_t
     println!("Handled request with following command: {}", command_as_string);
 }
 
-fn setup_game(config: &MainConfig, universe_name: String) -> (TcpListener, Sender<ExternalCommands>, Receiver<ExternalCommandReturnValues>) {
+fn setup_game(config: &MainConfig) -> (TcpListener, Sender<ExternalCommands>, Receiver<ExternalCommandReturnValues>) {
     let listener = TcpListener::bind(&config.address).unwrap();
 
-    let communicator = Communicator::new(universe_name);
+    let communicator = Communicator::new(config);
     let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
     let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();
 

@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fs;
 use std::fs::{create_dir_all, File};
 use std::io::{Read, Write};
 use std::path::Path;
@@ -8,9 +7,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::construct::construct::Construct;
+use crate::MainConfig;
 use crate::my_little_universe::MyLittleUniverse;
 use crate::time::TimeStackState;
-use crate::universe_generator::{generate_performance_test_universe, generate_simple_universe};
+use crate::universe_generator::generate_universe;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ExternalSaveLoad {
@@ -93,13 +93,13 @@ fn load_constructs(universe_name: &String) -> HashMap<String, Construct> {
     constructs
 }
 
-pub fn load_or_create_universe(universe_name: String) -> MyLittleUniverse {
-    let save_file_path = format!("./save/{}/", universe_name);
+pub fn load_or_create_universe(config: &MainConfig) -> MyLittleUniverse {
+    let save_file_path = format!("./save/{}/", config.universe_name());
 
     return if Path::new(&save_file_path).is_dir() {
-        load_universe(universe_name)
+        load_universe(config.universe_name().to_string())
     } else {
-        generate_simple_universe(universe_name)
+        generate_universe(config)
     };
 }
 
@@ -107,9 +107,8 @@ pub fn load_or_create_universe(universe_name: String) -> MyLittleUniverse {
 mod tests_int {
     use std::fs;
     use std::path::Path;
+    use crate::MainConfig;
 
-    use crate::my_little_universe;
-    use crate::products::Product;
     use crate::save_load::{load_or_create_universe, load_time, load_universe};
     use crate::time::TimeStackState;
     use crate::universe_generator::generate_simple_universe;
@@ -140,8 +139,14 @@ mod tests_int {
 
     #[test]
     fn load_or_create_universe_test() {
+        let main_config = MainConfig {
+            address : "random".to_string(),
+            universe_name : "load_or_create_universe".to_string(),
+            config_name : "default".to_string()
+        };
+
         assert_eq!(false, Path::new(&"./save/load_or_create_universe").is_dir());
-        let universe = load_or_create_universe("load_or_create_universe".to_string());
+        let universe = load_or_create_universe(&main_config);
         assert_eq!(false, Path::new(&"./save/load_or_create_universe").is_dir());
         universe.save();
         assert_eq!(true, Path::new(&"./save/load_or_create_universe").is_dir());

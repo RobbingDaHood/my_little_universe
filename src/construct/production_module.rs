@@ -1,13 +1,7 @@
-use std::cmp;
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
 use crate::construct::amount::Amount;
-use crate::construct::construct;
 use crate::construct::construct::Construct;
-use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
-use crate::products::Product;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct ProductionModule {
@@ -80,7 +74,7 @@ impl ProductionModule {
     }
 
     fn add_all_outputs(&mut self, construct: &mut Construct) {
-        for mut output in &mut self.output {
+        for output in &mut self.output {
             let leftover = construct.load_request(&Amount::new(output.product().clone(), output.amount()));
 
             if leftover != 0 {
@@ -139,12 +133,9 @@ impl ProductionModule {
 
 #[cfg(test)]
 mod tests_int {
-    use std::collections::HashMap;
-
     use crate::construct::amount::Amount;
     use crate::construct::construct::Construct;
     use crate::construct::production_module::ProductionModule;
-    use crate::construct_module::CanHandleNextTurn;
     use crate::products::Product;
 
     #[test]

@@ -221,9 +221,7 @@ fn handle_production_input(current_storage: &mut HashMap<Product, u32>, current_
 mod tests_int {
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
-    use crate::construct::construct::ExternalConstructEventType::RequestLoad;
     use crate::construct::production_module::ProductionModule;
-    use crate::construct_module::CanHandleNextTurn;
     use crate::construct_module::ConstructModuleType::Production;
     use crate::products::Product;
 
@@ -254,14 +252,14 @@ mod tests_int {
     #[test]
     fn install_and_uninstall_tries_its_best() {
         let mut construct = Construct::new("The base".to_string(), 500);
-        let mut ore_production = ProductionModule::new(
+        let ore_production = ProductionModule::new(
             "PowerToOre".to_string(),
             vec![Amount::new(Product::PowerCells, 1)],
             vec![Amount::new(Product::Ores, 2)],
             1,
             0,
         );
-        let mut metal_production = ProductionModule::new(
+        let metal_production = ProductionModule::new(
             "OreAndEnergyToMetal".to_string(),
             vec![Amount::new(Product::PowerCells, 2), Amount::new(Product::Ores, 4)],
             vec![Amount::new(Product::Metals, 1)],
@@ -287,35 +285,20 @@ mod tests_int {
     #[test]
     fn test_parsing() {
         let mut construct = Construct::new("The base".to_string(), 500);
-        let mut ore_production = ProductionModule::new(
-            "PowerToOre".to_string(),
-            vec![Amount::new(Product::PowerCells, 1)],
-            vec![Amount::new(Product::Ores, 2)],
-            1,
-            0,
-        );
-        let mut metal_production = ProductionModule::new(
-            "OreAndEnergyToMetal".to_string(),
-            vec![Amount::new(Product::PowerCells, 2), Amount::new(Product::Ores, 4)],
-            vec![Amount::new(Product::Metals, 1)],
-            3,
-            0,
-        );
-
         format!("{:?}", request_state(&mut construct));
     }
 
     #[test]
     fn production() {
         let mut construct = Construct::new("The base".to_string(), 500);
-        let mut ore_production = ProductionModule::new(
+        let ore_production = ProductionModule::new(
             "PowerToOre".to_string(),
             vec![Amount::new(Product::PowerCells, 1)],
             vec![Amount::new(Product::Ores, 2)],
             1,
             0,
         );
-        let mut metal_production = ProductionModule::new(
+        let metal_production = ProductionModule::new(
             "OreAndEnergyToMetal".to_string(),
             vec![Amount::new(Product::PowerCells, 2), Amount::new(Product::Ores, 4)],
             vec![Amount::new(Product::Metals, 1)],
@@ -367,7 +350,7 @@ mod tests_int {
         assert_eq!(Some(&2), construct.current_storage.get(&Product::Ores));
         assert_eq!(Some(&1), construct.current_storage.get(&Product::Metals));
 
-        for i in { 7..200 } {
+        for i in 7..200 {
             next_turn(&mut construct, i);
         }
 
@@ -375,7 +358,7 @@ mod tests_int {
         assert_eq!(Some(&80), construct.current_storage.get(&Product::Ores));
         assert_eq!(Some(&40), construct.current_storage.get(&Product::Metals)); //(200-80/2)/4
 
-        for i in { 201..205 } {
+        for i in 201..205 {
             next_turn(&mut construct, i);
         }
 
@@ -384,7 +367,7 @@ mod tests_int {
         assert_eq!(Some(&40), construct.current_storage.get(&Product::Metals));
 
         //Bigger output than input will fill up the station over time
-        let mut metal_production = ProductionModule::new(
+        let metal_production = ProductionModule::new(
             "MetalToEnergy".to_string(),
             vec![Amount::new(Product::Metals, 1)],
             vec![Amount::new(Product::PowerCells, 200)],

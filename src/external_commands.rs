@@ -1,7 +1,6 @@
 use serde::{Deserialize, Serialize};
 
 pub use crate::construct::amount::Amount;
-use crate::construct::construct;
 use crate::construct::construct::{ConstructEvenReturnType, ExternalConstructEventType};
 use crate::my_little_universe::MyLittleUniverseReturnValues;
 use crate::products::Product;
