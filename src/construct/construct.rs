@@ -4,8 +4,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::construct::amount::Amount;
-use crate::construct::construct::ConstructEvenReturnType::{RequestLoadProcessed, RequestProcessed, RequestUnloadProcessed};
-use crate::construct::construct_position::{ConstructPosition, ExternalConstructPositionEventType, handle_event};
+use crate::construct::construct::ConstructEvenReturnType::{RequestLoadProcessed, RequestUnloadProcessed};
+use crate::construct::construct_position::{ConstructPosition, ConstructPositionEventReturnType, ConstructPositionState, ExternalConstructPositionEventType};
 use crate::construct::production_module::ProductionModule;
 use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
 use crate::products::Product;
@@ -26,7 +26,7 @@ pub enum ExternalConstructEventType {
     RequestLoad(Amount),
     RequestUnload(Amount),
     GetConstructState { include_stack: bool },
-    ConstructPosition(ExternalConstructPositionEventType)
+    ConstructPosition(ExternalConstructPositionEventType),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -35,7 +35,7 @@ pub enum ConstructEvenReturnType {
     RequestUnloadProcessed(u32),
     ConstructState(Construct),
     TurnExecuted,
-    RequestProcessed
+    ConstructPosition(ConstructPositionEventReturnType),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -45,12 +45,12 @@ pub struct Construct {
     current_storage: HashMap<Product, u32>,
     modules: Vec<ConstructModuleType>,
     event_stack: Vec<ConstructEventType>,
-    position: ConstructPosition,
+    position: ConstructPositionState,
 }
 
 impl Construct {
     pub fn new(name: String, capacity: u32) -> Self {
-        Construct { name, capacity, current_storage: HashMap::new(), modules: Vec::new(), event_stack: Vec::new(), position: ConstructPosition::Nowhere }
+        Construct { name: name.clone(), capacity, current_storage: HashMap::new(), modules: Vec::new(), event_stack: Vec::new(), position: ConstructPositionState::new(ConstructPosition::Nowhere, name.clone()) }
     }
 
     pub fn name(&self) -> &str {
@@ -97,8 +97,7 @@ impl Construct {
                 ConstructEvenReturnType::TurnExecuted
             }
             ConstructEventType::External(ExternalConstructEventType::ConstructPosition(construct_position_event)) => {
-                self.position = handle_event(&construct_position_event);
-                RequestProcessed
+                ConstructEvenReturnType::ConstructPosition(self.position.handle_event(&construct_position_event))
             }
         };
     }
@@ -229,8 +228,8 @@ fn handle_production_input(current_storage: &mut HashMap<Product, u32>, current_
 mod tests_int {
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
+    use crate::construct::construct_position::{ConstructPositionEventReturnType, ExternalConstructPositionEventType};
     use crate::construct::construct_position::ConstructPosition::{Docked, Nowhere};
-    use crate::construct::construct_position::ExternalConstructPositionEventType;
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
     use crate::products::Product;
@@ -302,11 +301,26 @@ mod tests_int {
     #[test]
     fn docking() {
         let mut construct = Construct::new("The base".to_string(), 500);
-        assert_eq!(Nowhere, construct.position);
-        construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock(construct.name().to_string()))));
-        assert_eq!(Docked(construct.name().to_string()), construct.position);
-        construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Undock)));
-        assert_eq!(Nowhere, construct.position);
+        let mut construct2 = Construct::new("The base2".to_string(), 500);
+
+        assert_eq!(Nowhere, *construct.position.position());
+        assert_eq!(
+            ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::ConstructCannotDockAtItself),
+            construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock(construct.name().to_string()))))
+        );
+        assert_eq!(Nowhere, *construct.position.position());
+
+        assert_eq!(
+            ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed),
+            construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock(construct2.name().to_string()))))
+        );
+        assert_eq!(Docked(construct2.name().to_string()), *construct.position.position());
+
+        assert_eq!(
+            ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed),
+            construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Undock)))
+        );
+        assert_eq!(Nowhere, *construct.position.position());
     }
 
     #[test]
