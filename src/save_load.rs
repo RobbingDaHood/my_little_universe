@@ -68,7 +68,12 @@ impl MyLittleUniverse {
         println!("Saving {}", file_path);
         let mut file = File::create(&file_path)
             .expect(&format!("Failed to create time save file, got: {}", &file_path).as_str());
-        file.write_all(format!("{}", json!(self.constructs())).as_bytes()).expect("Had trouble saving station to file.");
+
+        file.write_all("{".as_bytes()).expect("Had trouble saving station to file.");
+        for (construct_name, construct) in self.constructs() {
+            file.write_all(format!("\"{}\":{}", construct_name, json!(construct)).as_bytes()).expect("Had trouble saving station to file.");
+        }
+        file.write_all("}".as_bytes()).expect("Had trouble saving station to file.");
     }
 }
 
@@ -107,8 +112,8 @@ pub fn load_or_create_universe(config: &MainConfig) -> MyLittleUniverse {
 mod tests_int {
     use std::fs;
     use std::path::Path;
-    use crate::MainConfig;
 
+    use crate::MainConfig;
     use crate::save_load::{load_or_create_universe, load_time, load_universe};
     use crate::time::TimeStackState;
     use crate::universe_generator::generate_simple_universe;
@@ -140,9 +145,9 @@ mod tests_int {
     #[test]
     fn load_or_create_universe_test() {
         let main_config = MainConfig {
-            address : "random".to_string(),
-            universe_name : "load_or_create_universe".to_string(),
-            config_name : "default".to_string()
+            address: "random".to_string(),
+            universe_name: "load_or_create_universe".to_string(),
+            config_name: "default".to_string(),
         };
 
         assert_eq!(false, Path::new(&"./save/load_or_create_universe").is_dir());

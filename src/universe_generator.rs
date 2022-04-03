@@ -67,7 +67,7 @@ pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
 pub fn generate_performance_test_universe(universe_name: String) -> MyLittleUniverse {
     let mut constructs: HashMap<String, Construct> = HashMap::new();
 
-    for i in 1..9999999 {
+    for i in 1..999999 {
         let mut construct = Construct::new(format!("{}{}", i, "The_base".to_string()), 500);
         let ore_production = ProductionModule::new(
             "PowerToOre".to_string(),

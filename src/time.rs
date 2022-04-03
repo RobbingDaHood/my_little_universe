@@ -59,7 +59,7 @@ impl TimeStackState {
     }
 
     pub fn push_event(&mut self, event: &TimeEventType) -> TimeEventReturnType {
-        self.event_stack.push(event.clone());
+        // self.event_stack.push(event.clone());
         self.handle_event(event)
     }
 

@@ -27,7 +27,9 @@ pub mod construct_module;
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct MainConfig {
     address: String,
+    #[serde(default)]
     universe_name: String,
+    #[serde(default)]
     config_name: String,
 }
 
