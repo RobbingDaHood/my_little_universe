@@ -142,13 +142,13 @@ impl ExternalCommands {
         }
 
         match command_parts[1] {
-            "SaveTheUniverse" => { return Ok(ExternalCommands::Save(ExternalSaveLoad::SaveTheUniverse)); }
-            "SaveTheUniverseAs" => {
+            "TheUniverse" => { return Ok(ExternalCommands::Save(ExternalSaveLoad::TheUniverse)); }
+            "TheUniverseAs" => {
                 if command_parts.len() < 3 {
                     return Err(format!("SaveTheUniverseAs needs a name of the save folder. Got {:?}", command_parts));
                 }
 
-                return Ok(ExternalCommands::Save(ExternalSaveLoad::SaveTheUniverseAs(command_parts[2].to_string())));
+                return Ok(ExternalCommands::Save(ExternalSaveLoad::TheUniverseAs(command_parts[2].to_string())));
             }
             _ => Err(format!("Unknown Save command. Got {:?}", command_parts))
         }
@@ -183,9 +183,9 @@ mod tests_int {
         assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::GetConstructState { include_stack: true }),
                    ExternalCommands::try_from(&"Construct name GetConstructState".to_string()).unwrap());
 
-        assert_eq!(ExternalCommands::Save(ExternalSaveLoad::SaveTheUniverse),
-                   ExternalCommands::try_from(&"Save SaveTheUniverse".to_string()).unwrap());
-        assert_eq!(ExternalCommands::Save(ExternalSaveLoad::SaveTheUniverseAs("new_name".to_string())),
-                   ExternalCommands::try_from(&"Save SaveTheUniverseAs new_name".to_string()).unwrap());
+        assert_eq!(ExternalCommands::Save(ExternalSaveLoad::TheUniverse),
+                   ExternalCommands::try_from(&"Save TheUniverse".to_string()).unwrap());
+        assert_eq!(ExternalCommands::Save(ExternalSaveLoad::TheUniverseAs("new_name".to_string())),
+                   ExternalCommands::try_from(&"Save TheUniverseAs new_name".to_string()).unwrap());
     }
 }

@@ -14,8 +14,8 @@ use crate::universe_generator::generate_universe;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ExternalSaveLoad {
-    SaveTheUniverseAs(String),
-    SaveTheUniverse,
+    TheUniverseAs(String),
+    TheUniverse,
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]

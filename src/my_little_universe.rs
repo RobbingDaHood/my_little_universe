@@ -56,10 +56,10 @@ impl MyLittleUniverse {
             }
             ExternalCommands::Save(save_event) => {
                 match save_event {
-                    ExternalSaveLoad::SaveTheUniverseAs(universe_name) => {
+                    ExternalSaveLoad::TheUniverseAs(universe_name) => {
                         ExternalCommandReturnValues::Save(self.save_as(&universe_name))
                     }
-                    ExternalSaveLoad::SaveTheUniverse => {
+                    ExternalSaveLoad::TheUniverse => {
                         ExternalCommandReturnValues::Save(self.save())
                     }
                 }
