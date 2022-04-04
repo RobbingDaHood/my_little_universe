@@ -23,6 +23,7 @@ mod my_little_universe;
 mod universe_generator;
 mod construct;
 pub mod construct_module;
+mod sector;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct MainConfig {

@@ -5,11 +5,13 @@ use serde::{Deserialize, Serialize};
 use crate::{ExternalCommandReturnValues, ExternalCommands};
 use crate::construct::construct::{Construct, ConstructEventType, InternalConstructEventType};
 use crate::save_load::ExternalSaveLoad;
+use crate::sector::{Sector, SectorPosition};
 use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
 pub struct MyLittleUniverse {
     time: TimeStackState,
     pub(crate) constructs: HashMap<String, Construct>,
+    sectors: HashMap<SectorPosition, Sector>,
     universe_name: String,
 }
 
@@ -20,11 +22,12 @@ pub enum MyLittleUniverseReturnValues {
 }
 
 impl MyLittleUniverse {
-    pub fn new(universe_name: String, time: TimeStackState, constructs: HashMap<String, Construct>) -> Self {
+    pub fn new(universe_name: String, time: TimeStackState, constructs: HashMap<String, Construct>, sectors: HashMap<SectorPosition, Sector>) -> Self {
         MyLittleUniverse {
             time,
             universe_name,
             constructs,
+            sectors,
         }
     }
 
@@ -107,7 +110,7 @@ mod tests_int {
         let mut constructs: HashMap<String, Construct> = HashMap::new();
         constructs.insert(construct.name().to_string(), construct);
 
-        let mut universe = MyLittleUniverse::new("universe_name".to_string(), TimeStackState::new(), constructs);
+        let mut universe = MyLittleUniverse::new("universe_name".to_string(), TimeStackState::new(), constructs, HashMap::new());
 
         //testing
         assert_eq!(

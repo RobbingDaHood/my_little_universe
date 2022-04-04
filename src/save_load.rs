@@ -80,7 +80,7 @@ impl MyLittleUniverse {
 pub fn load_universe(universe_name: String) -> MyLittleUniverse {
     let time = load_time(&universe_name);
     let constructs = load_constructs(&universe_name);
-    MyLittleUniverse::new(universe_name.clone(), time, constructs)
+    MyLittleUniverse::new(universe_name.clone(), time, constructs, HashMap::new())
 }
 
 fn load_constructs(universe_name: &String) -> HashMap<String, Construct> {

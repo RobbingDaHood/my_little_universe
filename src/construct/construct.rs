@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::construct::amount::Amount;
 use crate::construct::construct::ConstructEvenReturnType::{RequestLoadProcessed, RequestUnloadProcessed};
-use crate::construct::construct_position::{ConstructPosition, ConstructPositionEventReturnType, ConstructPositionState, ExternalConstructPositionEventType};
+use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionState, ExternalConstructPositionEventType};
 use crate::construct::production_module::ProductionModule;
 use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
 use crate::products::Product;
@@ -304,7 +304,7 @@ mod tests_int {
     #[test]
     fn docking() {
         let mut construct = Construct::new("The base".to_string(), 500);
-        let mut construct2 = Construct::new("The base2".to_string(), 500);
+        let construct2 = Construct::new("The base2".to_string(), 500);
 
         assert_eq!(Nowhere, *construct.position.position());
         assert_eq!(

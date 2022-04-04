@@ -135,7 +135,7 @@ mod tests_int {
     #[test]
     fn docking_module() {
         let mut position1 = ConstructPositionState::new("FirstLocation1".to_string());
-        let mut position2 = ConstructPositionState::new("FirstLocation2".to_string());
+        let position2 = ConstructPositionState::new("FirstLocation2".to_string());
 
         assert_eq!(Nowhere, *position1.position());
         assert_eq!(Nowhere, *position2.position());
@@ -165,13 +165,13 @@ mod tests_int {
     fn docking_universe() {
         let the_base1_name = "The base1";
         let the_base2_name = "The base2";
-        let mut construct1 = Construct::new(the_base1_name.to_string(), 500);
+        let construct1 = Construct::new(the_base1_name.to_string(), 500);
         let mut construct2 = Construct::new(the_base2_name.to_string(), 500);
         construct2.position.install();
         let mut constructs: HashMap<String, Construct> = HashMap::new();
         constructs.insert(construct1.name().to_string(), construct1);
         constructs.insert(construct2.name().to_string(), construct2);
-        let mut universe = MyLittleUniverse::new("universe_name".to_string(), TimeStackState::new(), constructs);
+        let mut universe = MyLittleUniverse::new("universe_name".to_string(), TimeStackState::new(), constructs, HashMap::new());
 
         assert_eq!(Nowhere, *universe.constructs.get(the_base1_name).unwrap().position().position());
         assert_eq!(Nowhere, *universe.constructs.get(the_base2_name).unwrap().position().position());
