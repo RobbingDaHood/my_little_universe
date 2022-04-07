@@ -137,10 +137,12 @@ mod tests_int {
     use crate::construct::construct::Construct;
     use crate::construct::production_module::ProductionModule;
     use crate::products::Product;
+    use crate::sector::SectorPosition;
 
     #[test]
     fn it_works() {
-        let mut construct = Construct::new("The base".to_string(), 500);
+        let sector_position = SectorPosition::new(1, 1, 1);
+        let mut construct = Construct::new("The base".to_string(), 500, sector_position);
 
         let mut ore_production = ProductionModule::new(
             "PowerToOre".to_string(),

@@ -11,6 +11,7 @@ use crate::construct_module::ConstructModuleType::Production as ProductionModule
 use crate::MainConfig;
 use crate::my_little_universe::MyLittleUniverse;
 use crate::products::Product;
+use crate::sector::SectorPosition;
 use crate::time::TimeStackState;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -47,7 +48,8 @@ fn read_universe_generator_config_file(config_name: &String) -> UniverseGenerato
 }
 
 pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
-    let mut construct = Construct::new("The_base".to_string(), 500);
+    let sector_position = SectorPosition::new(1, 1, 1);
+    let mut construct = Construct::new("The_base".to_string(), 500, sector_position);
     let ore_production = ProductionModule::new(
         "PowerToOre".to_string(),
         vec![Amount::new(Product::PowerCells, 1)],
@@ -67,8 +69,9 @@ pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
 pub fn generate_performance_test_universe(universe_name: String) -> MyLittleUniverse {
     let mut constructs: HashMap<String, Construct> = HashMap::new();
 
+    let sector_position = SectorPosition::new(1, 1, 1);
     for i in 1..999999 {
-        let mut construct = Construct::new(format!("{}{}", i, "The_base".to_string()), 500);
+        let mut construct = Construct::new(format!("{}{}", i, "The_base".to_string()), 500, sector_position.clone());
         let ore_production = ProductionModule::new(
             "PowerToOre".to_string(),
             vec![Amount::new(Product::PowerCells, 1)],

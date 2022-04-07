@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::construct::amount::Amount;
 use crate::construct::construct::{ConstructEvenReturnType, ExternalConstructEventType};
-use crate::my_little_universe::MyLittleUniverseReturnValues;
+use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverseReturnValues, OfMoveToSector};
 use crate::products::Product;
 use crate::save_load::{ExternalSaveLoad, ExternalSaveLoadReturnValue};
 use crate::sector::{ExternalSectorEventType, SectorEvenReturnType, SectorPosition};
@@ -14,6 +14,7 @@ pub enum ExternalCommands {
     Save(ExternalSaveLoad),
     Construct(String, ExternalConstructEventType),
     Sector(SectorPosition, ExternalSectorEventType),
+    Universe(ExternalUniverseEventType),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -40,6 +41,7 @@ impl TryFrom<&String> for ExternalCommands {
             "Construct" => { Self::parse_construct(command_parts) }
             "Sector" => { Self::parse_sector(command_parts) }
             "Save" => { Self::parse_save_load(command_parts) }
+            "Universe" => { Self::parse_universe(command_parts) }
             _ => { Err(format!("Unknown command, got: {}", value)) }
         };
     }
@@ -157,6 +159,16 @@ impl ExternalCommands {
             "GetSectorState" => {
                 return Ok(ExternalCommands::Sector(sector_position, ExternalSectorEventType::GetSectorState));
             }
+            "MoveToGroup" => {
+                if command_parts.len() > 4 {
+                    if let Ok(group_address) = command_parts[4].parse::<usize>() {
+                        return Ok(ExternalCommands::Sector(sector_position, ExternalSectorEventType::MoveToGroup(command_parts[3].to_string(), Some(group_address))));
+                    }
+                } else if command_parts.len() > 3 {
+                    return Ok(ExternalCommands::Sector(sector_position, ExternalSectorEventType::MoveToGroup(command_parts[3].to_string(), None)));
+                }
+                return Err(format!("MoveToGroup could not parse command. Got {:?}", command_parts));
+            }
             _ => Err(format!("Unknown Sector command. Got {:?}", command_parts))
         }
     }
@@ -176,6 +188,48 @@ impl ExternalCommands {
                 return Ok(ExternalCommands::Save(ExternalSaveLoad::TheUniverseAs(command_parts[2].to_string())));
             }
             _ => Err(format!("Unknown Save command. Got {:?}", command_parts))
+        }
+    }
+
+    fn parse_universe(command_parts: Vec<&str>) -> Result<ExternalCommands, String> {
+        if command_parts.len() < 2 {
+            return Err(format!("Universe command needs at least the command name. Got {:?}", command_parts));
+        }
+
+        let sector_position = command_parts[3];
+        let sector_position = sector_position.split("-").collect::<Vec<&str>>();
+        let sector_position = SectorPosition::new(
+            sector_position[0].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_position[0]).as_str()),
+            sector_position[1].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_position[1]).as_str()),
+            sector_position[2].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_position[2]).as_str()),
+        );
+
+        match command_parts[1] {
+            "MoveToSector" => {
+                if command_parts.len() > 4 {
+                    if command_parts.len() > 5 {
+                        if let Ok(group_address) = command_parts[4].parse::<usize>() {
+                            return Ok(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(
+                                OfMoveToSector::new(
+                                    command_parts[2].to_string(),
+                                    sector_position,
+                                    Some(group_address),
+                                )
+                            )));
+                        }
+                    } else {
+                        return Ok(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(
+                            OfMoveToSector::new(
+                                command_parts[2].to_string(),
+                                sector_position,
+                                None,
+                            )
+                        )));
+                    }
+                }
+                return Err(format!("MoveToSector did not parse the command. Got {:?}", command_parts));
+            }
+            _ => Err(format!("Unknown Universe command. Got {:?}", command_parts))
         }
     }
 }

@@ -9,6 +9,7 @@ use crate::construct::construct_position::{ConstructPositionEventReturnType, Con
 use crate::construct::production_module::ProductionModule;
 use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
 use crate::products::Product;
+use crate::sector::SectorPosition;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ConstructEventType {
@@ -49,8 +50,8 @@ pub struct Construct {
 }
 
 impl Construct {
-    pub fn new(name: String, capacity: u32) -> Self {
-        Construct { name: name.clone(), capacity, current_storage: HashMap::new(), modules: Vec::new(), event_stack: Vec::new(), position: ConstructPositionState::new(name.clone()) }
+    pub fn new(name: String, capacity: u32, sector_position: SectorPosition) -> Self {
+        Construct { name: name.clone(), capacity, current_storage: HashMap::new(), modules: Vec::new(), event_stack: Vec::new(), position: ConstructPositionState::new(name.clone(), sector_position) }
     }
 
     pub fn name(&self) -> &str {
@@ -231,14 +232,16 @@ mod tests_int {
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
     use crate::construct::construct_position::{ConstructPositionEventReturnType, ExternalConstructPositionEventType};
-    use crate::construct::construct_position::ConstructPosition::{Docked, Nowhere};
+    use crate::construct::construct_position::ConstructPosition::{Docked, Sector};
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
     use crate::products::Product;
+    use crate::sector::SectorPosition;
 
     #[test]
     fn load_and_unload_tries_its_best() {
-        let mut construct = Construct::new("The base".to_string(), 500);
+        let sector_position = SectorPosition::new(1, 1, 1);
+        let mut construct = Construct::new("The base".to_string(), 500, sector_position);
         assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
 
         assert_eq!(200, request_load(&mut construct, Amount::new(Product::PowerCells, 700)));
@@ -262,7 +265,8 @@ mod tests_int {
 
     #[test]
     fn install_and_uninstall_tries_its_best() {
-        let mut construct = Construct::new("The base".to_string(), 500);
+        let sector_position = SectorPosition::new(1, 1, 1);
+        let mut construct = Construct::new("The base".to_string(), 500, sector_position);
         let ore_production = ProductionModule::new(
             "PowerToOre".to_string(),
             vec![Amount::new(Product::PowerCells, 1)],
@@ -295,22 +299,24 @@ mod tests_int {
 
     #[test]
     fn test_parsing() {
-        let mut construct = Construct::new("The base".to_string(), 500);
+        let sector_position = SectorPosition::new(1, 1, 1);
+        let mut construct = Construct::new("The base".to_string(), 500, sector_position);
         format!("{:?}", request_state(&mut construct));
     }
 
 
     #[test]
     fn docking() {
-        let mut construct = Construct::new("The base".to_string(), 500);
-        let construct2 = Construct::new("The base2".to_string(), 500);
+        let sector_position = SectorPosition::new(1, 1, 1);
+        let mut construct = Construct::new("The base".to_string(), 500, sector_position.clone());
+        let construct2 = Construct::new("The base2".to_string(), 500, sector_position.clone());
 
-        assert_eq!(Nowhere, *construct.position.position());
+        assert_eq!(Sector(sector_position.clone()), *construct.position.position());
         assert_eq!(
             ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Construct cannot dock with itself.".to_string())),
             construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock(construct.name().to_string()))))
         );
-        assert_eq!(Nowhere, *construct.position.position());
+        assert_eq!(Sector(sector_position.clone()), *construct.position.position());
 
         assert_eq!(
             ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed),
@@ -320,14 +326,15 @@ mod tests_int {
 
         assert_eq!(
             ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed),
-            construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Undock)))
+            construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Undock(sector_position.clone()))))
         );
-        assert_eq!(Nowhere, *construct.position.position());
+        assert_eq!(Sector(sector_position.clone()), *construct.position.position());
     }
 
     #[test]
     fn production() {
-        let mut construct = Construct::new("The base".to_string(), 500);
+        let sector_position = SectorPosition::new(1, 1, 1);
+        let mut construct = Construct::new("The base".to_string(), 500, sector_position.clone());
         let ore_production = ProductionModule::new(
             "PowerToOre".to_string(),
             vec![Amount::new(Product::PowerCells, 1)],

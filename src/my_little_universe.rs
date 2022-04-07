@@ -4,8 +4,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::{ExternalCommandReturnValues, ExternalCommands};
 use crate::construct::construct::{Construct, ConstructEventType, InternalConstructEventType};
+use crate::construct::construct_position::ConstructPosition;
 use crate::save_load::ExternalSaveLoad;
-use crate::sector::{Sector, SectorEventType, SectorPosition};
+use crate::sector::{InternalSectorEventType, Sector, SectorEvenReturnType, SectorEventType, SectorPosition};
+use crate::sector::SectorEvenReturnType::{Denied, Entered};
 use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
 pub struct MyLittleUniverse {
@@ -15,11 +17,32 @@ pub struct MyLittleUniverse {
     universe_name: String,
 }
 
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum ExternalUniverseEventType {
+    MoveToSector(OfMoveToSector),
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct OfMoveToSector {
+    construct_name: String,
+    sector_position: SectorPosition,
+    group_address: Option<usize>,
+}
+
+impl OfMoveToSector {
+    pub fn new(construct_name: String, sector_position: SectorPosition, group_address: Option<usize>) -> Self {
+        OfMoveToSector { construct_name, sector_position, group_address }
+    }
+}
+
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum MyLittleUniverseReturnValues {
     CouldNotFindStation,
     CouldNotFindConstruct(String),
     CouldNotFindSector(SectorPosition),
+    MovedToSector(usize),
+    CouldNotMoveToSector(String),
 }
 
 impl MyLittleUniverse {
@@ -77,6 +100,65 @@ impl MyLittleUniverse {
                     None => { ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindSector(sector_position)) }
                 };
             }
+            ExternalCommands::Universe(event) => {
+                match event {
+                    ExternalUniverseEventType::MoveToSector(of_move_to_sector) => ExternalCommandReturnValues::Universe(self.move_to_sector(of_move_to_sector))
+                }
+            }
+        }
+    }
+
+    fn move_to_sector(&mut self, of_move_to_sector: OfMoveToSector) -> MyLittleUniverseReturnValues {
+        if !self.sectors.contains_key(&of_move_to_sector.sector_position) {
+            return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Target sector does not exist {}", of_move_to_sector.construct_name));
+        }
+
+        match self.constructs.get_mut(&of_move_to_sector.construct_name) {
+            Some(construct) => {
+                let position = construct.position().position();
+                match position {
+                    ConstructPosition::Docked(construct_name) => {
+                        return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Is docked at {}", construct_name));
+                    }
+                    ConstructPosition::Sector(source_sector_position) => {
+                        match self.sectors.get_mut(source_sector_position) {
+                            Some(source_sector) => {
+                                match source_sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Leave(of_move_to_sector.construct_name.clone()))) {
+                                    SectorEvenReturnType::Approved => {
+                                        //construct.push_event()
+                                    }
+                                    Denied(message) => {
+                                        return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Could not leave sector {:?}, because {}", of_move_to_sector.sector_position, message));
+                                    }
+                                    _ => {
+                                        panic!("Source sector did not return expected event. Event: {:?}, Source Sector: {:?}", of_move_to_sector, of_move_to_sector.sector_position);
+                                    }
+                                }
+                            }
+                            None => {
+                                return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Source sector does not exist {:?}", of_move_to_sector.sector_position));
+                            }
+                        }
+                    }
+                }
+            }
+            None => {
+                return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Construct does not exist {}", of_move_to_sector.construct_name));
+            }
+        }
+
+        match self.sectors.get_mut(&of_move_to_sector.sector_position) {
+            Some(target_sector) => {
+                if let Entered(group_id) = target_sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Enter(of_move_to_sector.construct_name.clone(), of_move_to_sector.group_address))) {
+
+                    return MyLittleUniverseReturnValues::MovedToSector(group_id);
+                } else {
+                    panic!("Constructs are in bad state; It is removed from one sector but not added to the new one. Construct_name: {}; Reason: Target did not accept construct entering.", of_move_to_sector.construct_name);
+                }
+            }
+            None => {
+                panic!("Constructs are in bad state; It is removed from one sector but not added to the new one. Construct_name: {}; Reason: Target were gone when needed.", of_move_to_sector.construct_name);
+            }
         }
     }
 
@@ -102,12 +184,14 @@ mod tests_int {
     use crate::construct_module::ConstructModuleType::Production;
     use crate::my_little_universe::{MyLittleUniverse, MyLittleUniverseReturnValues};
     use crate::products::Product;
+    use crate::sector::SectorPosition;
     use crate::time::{ExternalTimeEventType, TimeEventReturnType, TimeStackState};
 
     #[test]
     fn it_works() {
         //Setup universe
-        let mut construct = Construct::new("The base".to_string(), 500);
+        let sector_position = SectorPosition::new(1, 1, 1);
+        let mut construct = Construct::new("The base".to_string(), 500, sector_position);
         let ore_production = ProductionModule::new(
             "PowerToOre".to_string(),
             vec![Amount::new(Product::PowerCells, 1)],

@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::sector::SectorEvenReturnType::{Approved, SectorState};
+use crate::sector::SectorEvenReturnType::{Approved, Denied, Entered, SectorState};
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum SectorEventType {
@@ -9,18 +9,23 @@ pub enum SectorEventType {
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub enum InternalSectorEventType {}
+pub enum InternalSectorEventType {
+    Leave(String),
+    Enter(String, Option<usize>),
+}
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalSectorEventType {
     GetSectorState,
+    MoveToGroup(String, Option<usize>),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum SectorEvenReturnType {
     Approved,
-    Denied,
+    Denied(String),
     SectorState(Sector),
+    Entered(usize),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -54,14 +59,30 @@ impl Sector {
 
     fn handle_event(&mut self, event: &SectorEventType) -> SectorEvenReturnType {
         match event {
-            SectorEventType::Internal(_) => { Approved }
             SectorEventType::External(ExternalSectorEventType::GetSectorState) => {
                 return SectorState(self.clone());
+            }
+            SectorEventType::Internal(InternalSectorEventType::Enter(construct_name, group_id)) => {
+                Entered(
+                    self.enter_sector(construct_name.clone(), group_id.clone()),
+                )
+            }
+            SectorEventType::Internal(InternalSectorEventType::Leave(construct_name)) => {
+                match self.leave_sector(construct_name) {
+                    Ok(_) => Approved,
+                    Err(message) => Denied(message)
+                }
+            }
+            SectorEventType::External(ExternalSectorEventType::MoveToGroup(construct_name, group_id)) => {
+                match self.move_to_group(construct_name.clone(), group_id.clone()) {
+                    Ok(new_group_id) => Entered(new_group_id),
+                    Err(message) => Denied(message)
+                }
             }
         }
     }
 
-    pub fn move_to_group(&mut self, construct_name: String, construct_target: Option<usize>) -> Result<usize, String> {
+    fn move_to_group(&mut self, construct_name: String, construct_target: Option<usize>) -> Result<usize, String> {
         if let Some(construct_source) = self.groups.iter()
             .position(|group| group.contains(&construct_name)) {
             if construct_target.is_some() && construct_source.eq(&construct_target.unwrap()) {
@@ -76,11 +97,11 @@ impl Sector {
         }
     }
 
-    fn add_construct_to_group(&mut self, construct_name: &String, construct_target: Option<usize>) -> usize {
+    fn add_construct_to_group(&mut self, construct_name: &String, group_id: Option<usize>) -> usize {
         let mut new_address = 0;
 
         let mut target_exists = false;
-        if let Some(address) = construct_target {
+        if let Some(address) = group_id {
             if let Some(group) = self.groups.get_mut(address) {
                 group.push(construct_name.clone());
                 target_exists = true;
@@ -107,13 +128,13 @@ impl Sector {
         new_address
     }
 
-    fn remove_construct_from_group(&mut self, construct_name: &String, address: usize) {
-        if let Some(group) = self.groups.get_mut(address) {
+    fn remove_construct_from_group(&mut self, construct_name: &String, group_id: usize) {
+        if let Some(group) = self.groups.get_mut(group_id) {
             group.retain(|c| c.ne(construct_name));
         }
     }
 
-    pub fn leave_sector(&mut self, construct_name: &String) -> Result<(), String> {
+    fn leave_sector(&mut self, construct_name: &String) -> Result<(), String> {
         if let Some(construct_source) = self.groups.iter()
             .position(|group| group.contains(&construct_name)) {
             self.remove_construct_from_group(&construct_name, construct_source);
@@ -123,14 +144,14 @@ impl Sector {
         }
     }
 
-    pub fn enter_sector(&mut self, construct_name: String, construct_target: Option<usize>) -> usize {
-        self.add_construct_to_group(&construct_name, construct_target)
+    pub fn enter_sector(&mut self, construct_name: String, group_id: Option<usize>) -> usize {
+        self.add_construct_to_group(&construct_name, group_id)
     }
 }
 
 #[cfg(test)]
 mod tests_int {
-    use crate::sector::{Sector, SectorPosition};
+    use crate::sector::{ExternalSectorEventType, InternalSectorEventType, Sector, SectorEvenReturnType, SectorEventType, SectorPosition};
 
     #[test]
     fn one_construct() {
@@ -139,30 +160,30 @@ mod tests_int {
         let mut sector = Sector::new(groups, position);
 
         assert_eq!(0, sector.groups.len());
-        assert_eq!(0, sector.enter_sector("construct_1".to_string(), Some(0)));
+        assert_eq!(SectorEvenReturnType::Entered(0), sector.handle_event(&SectorEventType::Internal(InternalSectorEventType::Enter("construct_1".to_string(), Some(0)))));
         assert_eq!(1, sector.groups.len());
         assert_eq!(&"construct_1".to_string(), sector.groups.get(0).unwrap().get(0).unwrap());
 
-        assert_eq!(Ok(0), sector.move_to_group("construct_1".to_string(), Some(0)));
+        assert_eq!(SectorEvenReturnType::Entered(0), sector.handle_event(&SectorEventType::External(ExternalSectorEventType::MoveToGroup("construct_1".to_string(), Some(0)))));
         assert_eq!(&"construct_1".to_string(), sector.groups.get(0).unwrap().get(0).unwrap());
         assert_eq!(1, sector.groups.len());
 
-        assert_eq!(Ok(1), sector.move_to_group("construct_1".to_string(), None));
+        assert_eq!(SectorEvenReturnType::Entered(1), sector.handle_event(&SectorEventType::External(ExternalSectorEventType::MoveToGroup("construct_1".to_string(), None))));
         assert!(sector.groups.get(0).unwrap().is_empty());
         assert_eq!(&"construct_1".to_string(), sector.groups.get(1).unwrap().get(0).unwrap());
         assert_eq!(2, sector.groups.len());
 
-        assert_eq!(Ok(0), sector.move_to_group("construct_1".to_string(), Some(0)));
+        assert_eq!(SectorEvenReturnType::Entered(0), sector.handle_event(&SectorEventType::External(ExternalSectorEventType::MoveToGroup("construct_1".to_string(), Some(0)))));
         assert_eq!(&"construct_1".to_string(), sector.groups.get(0).unwrap().get(0).unwrap());
         assert!(sector.groups.get(1).unwrap().is_empty());
         assert_eq!(2, sector.groups.len());
 
-        assert_eq!(Ok(1), sector.move_to_group("construct_1".to_string(), Some(42)));
+        assert_eq!(SectorEvenReturnType::Entered(1), sector.handle_event(&SectorEventType::External(ExternalSectorEventType::MoveToGroup("construct_1".to_string(), Some(42)))));
         assert!(sector.groups.get(0).unwrap().is_empty());
         assert_eq!(&"construct_1".to_string(), sector.groups.get(1).unwrap().get(0).unwrap());
         assert_eq!(2, sector.groups.len());
 
-        assert_eq!(Ok(()), sector.leave_sector(&"construct_1".to_string()));
+        assert_eq!(SectorEvenReturnType::Approved, sector.handle_event(&SectorEventType::Internal(InternalSectorEventType::Leave("construct_1".to_string()))));
         assert!(sector.groups.get(0).unwrap().is_empty());
         assert!(sector.groups.get(1).unwrap().is_empty());
         assert_eq!(2, sector.groups.len());
@@ -176,35 +197,35 @@ mod tests_int {
         let mut sector = Sector::new(groups, position);
 
         assert_eq!(0, sector.groups.len());
-        assert_eq!(0, sector.enter_sector("construct_1".to_string(), None));
+        assert_eq!(SectorEvenReturnType::Entered(0), sector.handle_event(&SectorEventType::Internal(InternalSectorEventType::Enter("construct_1".to_string(), None))));
         assert_eq!(1, sector.groups.len());
         assert_eq!(&"construct_1".to_string(), sector.groups.get(0).unwrap().get(0).unwrap());
 
-        assert_eq!(1, sector.enter_sector("construct_2".to_string(), None));
+        assert_eq!(SectorEvenReturnType::Entered(1), sector.handle_event(&SectorEventType::Internal(InternalSectorEventType::Enter("construct_2".to_string(), None))));
         assert_eq!(2, sector.groups.len());
         assert_eq!(&"construct_1".to_string(), sector.groups.get(0).unwrap().get(0).unwrap());
         assert_eq!(&"construct_2".to_string(), sector.groups.get(1).unwrap().get(0).unwrap());
 
-        assert_eq!(Ok(2), sector.move_to_group("construct_1".to_string(), None));
+        assert_eq!(SectorEvenReturnType::Entered(2), sector.handle_event(&SectorEventType::External(ExternalSectorEventType::MoveToGroup("construct_1".to_string(), None))));
         assert_eq!(3, sector.groups.len());
         assert!(sector.groups.get(0).unwrap().is_empty());
         assert_eq!(&"construct_2".to_string(), sector.groups.get(1).unwrap().get(0).unwrap());
         assert_eq!(&"construct_1".to_string(), sector.groups.get(2).unwrap().get(0).unwrap());
 
-        assert_eq!(Ok(2), sector.move_to_group("construct_2".to_string(), Some(2)));
+        assert_eq!(SectorEvenReturnType::Entered(2), sector.handle_event(&SectorEventType::External(ExternalSectorEventType::MoveToGroup("construct_2".to_string(), Some(2)))));
         assert_eq!(3, sector.groups.len());
         assert!(sector.groups.get(0).unwrap().is_empty());
         assert!(sector.groups.get(1).unwrap().is_empty());
         assert_eq!(&"construct_2".to_string(), sector.groups.get(2).unwrap().get(1).unwrap());
         assert_eq!(&"construct_1".to_string(), sector.groups.get(2).unwrap().get(0).unwrap());
 
-        assert_eq!(Ok(0), sector.move_to_group("construct_1".to_string(), None));
+        assert_eq!(SectorEvenReturnType::Entered(0), sector.handle_event(&SectorEventType::External(ExternalSectorEventType::MoveToGroup("construct_1".to_string(), None))));
         assert_eq!(3, sector.groups.len());
         assert_eq!(&"construct_1".to_string(), sector.groups.get(0).unwrap().get(0).unwrap());
         assert!(sector.groups.get(1).unwrap().is_empty());
         assert_eq!(&"construct_2".to_string(), sector.groups.get(2).unwrap().get(0).unwrap());
 
-        assert_eq!(Ok(()), sector.leave_sector(&"construct_1".to_string()));
+        assert_eq!(SectorEvenReturnType::Approved, sector.handle_event(&SectorEventType::Internal(InternalSectorEventType::Leave("construct_1".to_string()))));
         assert_eq!(3, sector.groups.len());
         assert!(sector.groups.get(0).unwrap().is_empty());
         assert!(sector.groups.get(1).unwrap().is_empty());
@@ -215,7 +236,7 @@ mod tests_int {
             sector.leave_sector(&"construct_1".to_string())
         );
 
-        assert_eq!(Ok(0), sector.move_to_group("construct_2".to_string(), None));
+        assert_eq!(SectorEvenReturnType::Entered(0), sector.handle_event(&SectorEventType::External(ExternalSectorEventType::MoveToGroup("construct_2".to_string(), None))));
         assert_eq!(&"construct_2".to_string(), sector.groups.get(0).unwrap().get(0).unwrap());
         assert!(sector.groups.get(1).unwrap().is_empty());
         assert!(sector.groups.get(2).unwrap().is_empty());
