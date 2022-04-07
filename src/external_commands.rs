@@ -5,6 +5,7 @@ use crate::construct::construct::{ConstructEvenReturnType, ExternalConstructEven
 use crate::my_little_universe::MyLittleUniverseReturnValues;
 use crate::products::Product;
 use crate::save_load::{ExternalSaveLoad, ExternalSaveLoadReturnValue};
+use crate::sector::{ExternalSectorEventType, SectorEvenReturnType, SectorPosition};
 use crate::time::{ExternalTimeEventType, TimeEventReturnType};
 
 #[derive(Clone, PartialEq, Debug)]
@@ -12,6 +13,7 @@ pub enum ExternalCommands {
     Time(ExternalTimeEventType),
     Save(ExternalSaveLoad),
     Construct(String, ExternalConstructEventType),
+    Sector(SectorPosition, ExternalSectorEventType),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -20,6 +22,7 @@ pub enum ExternalCommandReturnValues {
     Save(ExternalSaveLoadReturnValue),
     Universe(MyLittleUniverseReturnValues),
     Construct(ConstructEvenReturnType),
+    Sector(SectorEvenReturnType),
 }
 
 impl TryFrom<&String> for ExternalCommands {
@@ -35,6 +38,7 @@ impl TryFrom<&String> for ExternalCommands {
         return match command_parts[0] {
             "Time" => { Self::parse_time(command_parts) }
             "Construct" => { Self::parse_construct(command_parts) }
+            "Sector" => { Self::parse_sector(command_parts) }
             "Save" => { Self::parse_save_load(command_parts) }
             _ => { Err(format!("Unknown command, got: {}", value)) }
         };
@@ -136,6 +140,27 @@ impl ExternalCommands {
         }
     }
 
+    fn parse_sector(command_parts: Vec<&str>) -> Result<Self, String> {
+        if command_parts.len() < 3 {
+            return Err(format!("Construct command needs at least the Construct name and command name. Got {:?}", command_parts));
+        }
+
+        let sector_position = command_parts[1];
+        let sector_coordinates = sector_position.split("-").collect::<Vec<&str>>();
+        let sector_position = SectorPosition::new(
+            sector_coordinates[0].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_coordinates[0]).as_str()),
+            sector_coordinates[1].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_coordinates[1]).as_str()),
+            sector_coordinates[2].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_coordinates[2]).as_str()),
+        );
+
+        match command_parts[2] {
+            "GetSectorState" => {
+                return Ok(ExternalCommands::Sector(sector_position, ExternalSectorEventType::GetSectorState));
+            }
+            _ => Err(format!("Unknown Sector command. Got {:?}", command_parts))
+        }
+    }
+
     fn parse_save_load(command_parts: Vec<&str>) -> Result<ExternalCommands, String> {
         if command_parts.len() < 2 {
             return Err(format!("Save command needs at least the command name. Got {:?}", command_parts));
@@ -161,6 +186,7 @@ mod tests_int {
     use crate::external_commands::{Amount, ExternalCommands};
     use crate::products::Product;
     use crate::save_load::ExternalSaveLoad;
+    use crate::sector::{ExternalSectorEventType, SectorPosition};
     use crate::time::ExternalTimeEventType;
 
     #[test]
@@ -182,6 +208,9 @@ mod tests_int {
                    ExternalCommands::try_from(&"Construct name RequestUnload Ores 25".to_string()).unwrap());
         assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::GetConstructState { include_stack: true }),
                    ExternalCommands::try_from(&"Construct name GetConstructState".to_string()).unwrap());
+
+        assert_eq!(ExternalCommands::Sector(SectorPosition::new(1, 1, 1), ExternalSectorEventType::GetSectorState),
+                   ExternalCommands::try_from(&"Sector 1-1-1 GetSectorState".to_string()).unwrap());
 
         assert_eq!(ExternalCommands::Save(ExternalSaveLoad::TheUniverse),
                    ExternalCommands::try_from(&"Save TheUniverse".to_string()).unwrap());

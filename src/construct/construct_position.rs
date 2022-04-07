@@ -57,10 +57,6 @@ impl ConstructPositionState {
     pub fn install(&mut self) {
         self.docker_modules.push(DockerModule::new());
     }
-
-    fn uninstall(&mut self, index: usize) {
-        self.docker_modules.remove(index);
-    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -71,10 +67,6 @@ pub struct DockerModule {
 impl DockerModule {
     pub fn new() -> Self {
         DockerModule { docked_construct: None }
-    }
-
-    pub fn docked_construct(&self) -> &Option<String> {
-        &self.docked_construct
     }
 }
 

@@ -72,7 +72,6 @@ impl Construct {
         &self.position
     }
 
-
     pub fn push_event(&mut self, event: &ConstructEventType) -> ConstructEvenReturnType {
         // self.event_stack.push(event.clone());
         self.handle_event(event)

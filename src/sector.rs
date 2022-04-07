@@ -1,20 +1,45 @@
-use std::collections::HashMap;
-use std::fmt::format;
-
 use serde::{Deserialize, Serialize};
+
+use crate::sector::SectorEvenReturnType::{Approved, SectorState};
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum SectorEventType {
+    Internal(InternalSectorEventType),
+    External(ExternalSectorEventType),
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum InternalSectorEventType {}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum ExternalSectorEventType {
+    GetSectorState,
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum SectorEvenReturnType {
+    Approved,
+    Denied,
+    SectorState(Sector),
+}
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Sector {
     groups: Vec<Vec<String>>,
-    //index is group id
     position: SectorPosition,
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Hash, std::cmp::Eq)]
 pub struct SectorPosition {
     x: u8,
     y: u8,
     z: u8,
+}
+
+impl SectorPosition {
+    pub fn new(x: u8, y: u8, z: u8) -> Self {
+        SectorPosition { x, y, z }
+    }
 }
 
 impl Sector {
@@ -22,11 +47,18 @@ impl Sector {
         Sector { groups, position }
     }
 
-    pub fn groups(&self) -> &Vec<Vec<String>> {
-        &self.groups
+    pub fn push_event(&mut self, event: &SectorEventType) -> SectorEvenReturnType {
+        // self.event_stack.push(event.clone());
+        self.handle_event(event)
     }
-    pub fn position(&self) -> &SectorPosition {
-        &self.position
+
+    fn handle_event(&mut self, event: &SectorEventType) -> SectorEvenReturnType {
+        match event {
+            SectorEventType::Internal(_) => { Approved }
+            SectorEventType::External(ExternalSectorEventType::GetSectorState) => {
+                return SectorState(self.clone());
+            }
+        }
     }
 
     pub fn move_to_group(&mut self, construct_name: String, construct_target: Option<usize>) -> Result<usize, String> {
@@ -130,7 +162,7 @@ mod tests_int {
         assert_eq!(&"construct_1".to_string(), sector.groups.get(1).unwrap().get(0).unwrap());
         assert_eq!(2, sector.groups.len());
 
-        sector.leave_sector(&"construct_1".to_string());
+        assert_eq!(Ok(()), sector.leave_sector(&"construct_1".to_string()));
         assert!(sector.groups.get(0).unwrap().is_empty());
         assert!(sector.groups.get(1).unwrap().is_empty());
         assert_eq!(2, sector.groups.len());

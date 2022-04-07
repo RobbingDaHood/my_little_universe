@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{ExternalCommandReturnValues, ExternalCommands};
 use crate::construct::construct::{Construct, ConstructEventType, InternalConstructEventType};
 use crate::save_load::ExternalSaveLoad;
-use crate::sector::{Sector, SectorPosition};
+use crate::sector::{Sector, SectorEventType, SectorPosition};
 use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
 pub struct MyLittleUniverse {
@@ -19,6 +19,7 @@ pub struct MyLittleUniverse {
 pub enum MyLittleUniverseReturnValues {
     CouldNotFindStation,
     CouldNotFindConstruct(String),
+    CouldNotFindSector(SectorPosition),
 }
 
 impl MyLittleUniverse {
@@ -66,6 +67,15 @@ impl MyLittleUniverse {
                         ExternalCommandReturnValues::Save(self.save())
                     }
                 }
+            }
+            ExternalCommands::Sector(sector_position, construct_event) => {
+                return match self.sectors.get_mut(&sector_position) {
+                    Some(sector) => {
+                        let return_type = sector.push_event(&SectorEventType::External(construct_event));
+                        ExternalCommandReturnValues::Sector(return_type)
+                    }
+                    None => { ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindSector(sector_position)) }
+                };
             }
         }
     }
