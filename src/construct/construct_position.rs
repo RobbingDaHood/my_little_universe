@@ -42,6 +42,7 @@ pub enum ExternalConstructPositionEventType {
     Dock(String),
     Undock,
     EnterSector(ConstructPositionSector),
+    EnterGroup(usize),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -86,6 +87,15 @@ impl ConstructPositionState {
             ConstructPositionEventType::External(ExternalConstructPositionEventType::EnterSector(sector_position)) => {
                 self.position = Sector(sector_position.clone());
                 RequestProcessed
+            }
+            ConstructPositionEventType::External(ExternalConstructPositionEventType::EnterGroup(group_address)) => {
+                match self.position() {
+                    ConstructPositionStatus::Sector(current_position) => {
+                        self.position = Sector(ConstructPositionSector::new(current_position.sector_position.clone(), group_address.clone()));
+                        RequestProcessed
+                    }
+                    ConstructPositionStatus::Docked(docked_at) => Denied(format!("Currently docket at {} so cannot update the group for {}.", docked_at, self.source_construct_name))
+                }
             }
             ConstructPositionEventType::Internal(InternalConstructPositionEventType::Undock(sector_position)) => {
                 self.position = Sector(sector_position.clone());
@@ -153,26 +163,33 @@ impl MyLittleUniverse {
             return Denied("Construct cannot dock with itself.".to_string());
         }
 
-        match self.constructs().get(target_construct_name.as_str()) {
+        let target_construct = match self.constructs().get(target_construct_name.as_str()) {
             None => return ConstructPositionEventReturnType::Denied(format!("No construct with the name {}", target_construct_name)),
-            Some(_) => {
+            Some(construct) => {
                 if self.construct_is_part_of_docker_parents(target_construct_name.clone(), &source_construct_name) {
                     return Denied(format!("Construct {} is already docked at {} or one of its docker parents.", source_construct_name, target_construct_name));
                 }
+                construct
             }
         };
 
-        match self.constructs().get(source_construct_name.as_str()) {
+        let source_construct = match self.constructs().get(source_construct_name.as_str()) {
             None => return ConstructPositionEventReturnType::Denied(format!("No construct with the name {}", source_construct_name)),
             Some(source_construct) => {
                 match &source_construct.position.position {
                     Docked(docked_at_name) => return ConstructPositionEventReturnType::Denied(format!("Construct {} is already docked at {} so cannot dock again. Use Undock first.", source_construct_name, docked_at_name)),
-                    Sector(_) => {}
+                    Sector(_) => source_construct
                 }
             }
         };
 
-        //TODO Ensure they are in the same group; need groupid on the construct position.
+        if target_construct.position.position.ne(source_construct.position().position()) {
+            return Denied(format!("Construct {:?} is at position {:?} and {:?} is at position {:?}, but they need to be at the same position to dock.",
+                                  source_construct_name,
+                                  source_construct.position.position,
+                                  target_construct_name,
+                                  target_construct.position().position()));
+        }
 
         return match self.constructs.get_mut(target_construct_name.as_str()).unwrap().handle_docking_request(source_construct_name.clone()) {
             ConstructPositionEventReturnType::RequestProcessed => self.constructs.get_mut(source_construct_name.as_str()).unwrap().handle_docked(target_construct_name),

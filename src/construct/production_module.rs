@@ -16,7 +16,6 @@ pub struct ProductionModule {
 
 impl ProductionModule {
     fn have_all_inputs(&mut self, construct: &Construct) -> bool {
-        println!("construct in have_all_input {:?}", construct);
         for input in &self.input {
             match construct.current_storage().get(input.product()) {
                 Some(amount_stored) => {
@@ -44,7 +43,6 @@ impl ProductionModule {
 
     fn have_room_for_outputs(&mut self, construct: &Construct) -> bool {
         let mut total_need = 0;
-        println!("production in have_room_for_outputs {:?}", self);
         for output in &self.output {
             total_need += output.amount();
         }
@@ -120,7 +118,6 @@ impl ProductionModule {
     pub fn next_turn(&mut self, current_turn: &u64, construct: &mut Construct) {
         if current_turn >= &self.production_trigger_time {
             if self.production_trigger_time > 0 && self.have_room_for_outputs(&construct) {
-                println!("construct in have_room_for_outputs {:?}", construct);
                 self.add_all_outputs(construct);
             }
             if self.have_all_inputs(&construct) {

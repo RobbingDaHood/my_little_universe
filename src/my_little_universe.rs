@@ -6,7 +6,7 @@ use crate::{ExternalCommandReturnValues, ExternalCommands};
 use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
 use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionEventType, ConstructPositionSector, ConstructPositionStatus, ExternalConstructPositionEventType, InternalConstructPositionEventType};
 use crate::save_load::ExternalSaveLoad;
-use crate::sector::{InternalSectorEventType, Sector, SectorEvenReturnType, SectorEventType, SectorPosition};
+use crate::sector::{ExternalSectorEventType, InternalSectorEventType, Sector, SectorEvenReturnType, SectorEventType, SectorPosition};
 use crate::sector::SectorEvenReturnType::{Denied, Entered};
 use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
@@ -118,11 +118,30 @@ impl MyLittleUniverse {
                     }
                 }
             }
-            ExternalCommands::Sector(sector_position, construct_event) => {
+            ExternalCommands::Sector(sector_position, sector_event) => {
                 return match self.sectors.get_mut(&sector_position) {
                     Some(sector) => {
-                        let return_type = sector.push_event(&SectorEventType::External(construct_event));
-                        ExternalCommandReturnValues::Sector(return_type)
+                        match sector_event {
+                            ExternalSectorEventType::MoveToGroup(ref construct_name, _) => {
+                                let return_type = sector.push_event(&SectorEventType::External(sector_event.clone()));
+
+                                if let SectorEvenReturnType::Entered(group_address) = return_type {
+                                    return match self.constructs.get_mut(construct_name.as_str()).expect("Could not find construct!!")
+                                        .push_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::EnterGroup(group_address)))) {
+                                        ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed) => {
+                                            ExternalCommandReturnValues::Sector(return_type)
+                                        }
+                                        event => ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Construct {} had trouble updating its group state to {}, got this event {:?}", construct_name, group_address, event)))
+                                    };
+                                }
+
+                                ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Construct {} had trouble sector {:?}, got this returned {:?}", construct_name, sector_position, return_type)))
+                            }
+                            _ => {
+                                let return_type = sector.push_event(&SectorEventType::External(sector_event));
+                                ExternalCommandReturnValues::Sector(return_type)
+                            }
+                        }
                     }
                     None => { ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindSector(sector_position)) }
                 };
@@ -158,11 +177,10 @@ impl MyLittleUniverse {
                         return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Is docked at {}", construct_name));
                     }
                     ConstructPositionStatus::Sector(source_sector_position) => {
-                        if source_sector_position.sector_position().eq(&of_move_to_sector.sector_position) {
-                            return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Construct {:?} is already in target sector {:?}", of_move_to_sector.construct_name, of_move_to_sector.sector_position));
-                        }
-                        if of_move_to_sector.group_address.is_some() && source_sector_position.group_address().eq(&of_move_to_sector.group_address.unwrap()) {
-                            return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Construct {:?} is already in target group {:?} in sector {:?}", of_move_to_sector.construct_name, source_sector_position.group_address(), of_move_to_sector.sector_position));
+                        if source_sector_position.sector_position().eq(&of_move_to_sector.sector_position)
+                            && of_move_to_sector.group_address.is_some()
+                            && source_sector_position.group_address().eq(&of_move_to_sector.group_address.unwrap()) {
+                            return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Construct {:?} is already in target position {:?}", of_move_to_sector.construct_name, of_move_to_sector));
                         }
 
                         match self.sectors.get_mut(source_sector_position.sector_position()) {
@@ -237,7 +255,7 @@ mod tests_int {
     use crate::construct_module::ConstructModuleType::Production;
     use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverse, MyLittleUniverseReturnValues, OfMoveToSector};
     use crate::products::Product;
-    use crate::sector::SectorPosition;
+    use crate::sector::{ExternalSectorEventType, SectorEvenReturnType, SectorPosition};
     use crate::time::{ExternalTimeEventType, TimeEventReturnType, TimeStackState};
     use crate::universe_generator::generate_simple_universe;
 
@@ -306,8 +324,8 @@ mod tests_int {
         }
 
         assert_eq!(
-            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Construct \"transport\" is already in target sector SectorPosition { x: 1, y: 1, z: 1 }".to_string())),
-            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("transport".to_string(), SectorPosition::new(1, 1, 1), None)))),
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Construct \"transport\" is already in target position OfMoveToSector { construct_name: \"transport\", sector_position: SectorPosition { x: 1, y: 1, z: 1 }, group_address: Some(0) }".to_string())),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("transport".to_string(), SectorPosition::new(1, 1, 1), Some(0))))),
         );
 
         assert_eq!(
@@ -326,8 +344,8 @@ mod tests_int {
         );
 
         assert_eq!(
-            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Construct \"transport\" is already in target sector SectorPosition { x: 1, y: 1, z: 1 }".to_string())),
-            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("transport".to_string(), SectorPosition::new(1, 1, 1), None)))),
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Construct \"transport\" is already in target position OfMoveToSector { construct_name: \"transport\", sector_position: SectorPosition { x: 1, y: 1, z: 1 }, group_address: Some(1) }".to_string())),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("transport".to_string(), SectorPosition::new(1, 1, 1), Some(1))))),
         );
 
         assert_eq!(
@@ -358,9 +376,54 @@ mod tests_int {
         );
 
         assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Construct \"transport\" is at position Sector(ConstructPositionSector { sector_position: SectorPosition { x: 1, y: 1, z: 1 }, group_address: 0 }) and \"The_base_2\" is at position Sector(ConstructPositionSector { sector_position: SectorPosition { x: 2, y: 2, z: 2 }, group_address: 0 }), but they need to be at the same position to dock.".to_string()))),
+            universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock("The_base_2".to_string())))),
+        );
+
+        verify_all_constructs_position(&mut universe,
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::MovedToSector(1)),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("transport".to_string(), SectorPosition::new(2, 2, 2), None)))),
+        );
+
+        verify_all_constructs_position(&mut universe,
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 1)),
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Construct \"transport\" is at position Sector(ConstructPositionSector { sector_position: SectorPosition { x: 2, y: 2, z: 2 }, group_address: 1 }) and \"The_base_2\" is at position Sector(ConstructPositionSector { sector_position: SectorPosition { x: 2, y: 2, z: 2 }, group_address: 0 }), but they need to be at the same position to dock.".to_string()))),
+            universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock("The_base_2".to_string())))),
+        );
+
+        verify_all_constructs_position(&mut universe,
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 1)),
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Sector(SectorEvenReturnType::Entered(0)),
+            universe.handle_event(ExternalCommands::Sector(SectorPosition::new(2, 2, 2), ExternalSectorEventType::MoveToGroup("transport".to_string(), Some(0)))),
+        );
+
+        verify_all_constructs_position(&mut universe,
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+        );
+
+        assert_eq!(
             ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed)),
             universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock("The_base_2".to_string())))),
         );
+
 
         verify_all_constructs_position(&mut universe,
                                        Docked("The_base_2".to_string()),
@@ -409,6 +472,17 @@ mod tests_int {
                                        Docked("The_base_2".to_string()),
                                        Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
                                        Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::MovedToSector(0)),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("The_base_2".to_string(), SectorPosition::new(1, 1, 1), Some(0))))),
+        );
+
+        verify_all_constructs_position(&mut universe,
+                                       Docked("The_base_2".to_string()),
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
         );
 
         assert_eq!(
