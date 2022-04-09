@@ -113,10 +113,6 @@ impl DockerModule {
 
 impl Construct {
     pub fn handle_docking_request(&mut self, source_construct_name: String) -> ConstructPositionEventReturnType {
-        if let ConstructPositionStatus::Docked(_) = &self.position.position {
-            return ConstructPositionEventReturnType::Denied(format!("Cannot dock at target that itself is already docked {}", self.name()));
-        }
-
         let free_docking_slot = self.position.docker_modules.iter_mut().find(|dm| dm.docked_construct.is_none());
         match free_docking_slot {
             None => return ConstructPositionEventReturnType::Denied(format!("Target has no free docking slots {}", self.name())),
@@ -138,8 +134,13 @@ impl MyLittleUniverse {
             return Denied("Construct cannot dock with itself.".to_string());
         }
 
-        if !self.constructs().contains_key(target_construct_name.as_str()) {
-            return ConstructPositionEventReturnType::Denied(format!("No construct with the name {}", target_construct_name));
+        match self.constructs().get(target_construct_name.as_str()) {
+            None => return ConstructPositionEventReturnType::Denied(format!("No construct with the name {}", target_construct_name)),
+            Some(_) => {
+                if self.construct_is_part_of_docker_parents(target_construct_name.clone(), &source_construct_name) {
+                    return Denied(format!("Construct {} is already docked at {} or one of its docker parents.", source_construct_name, target_construct_name));
+                }
+            }
         };
 
         match self.constructs().get(source_construct_name.as_str()) {
@@ -158,6 +159,19 @@ impl MyLittleUniverse {
             ConstructPositionEventReturnType::RequestProcessed => self.constructs.get_mut(source_construct_name.as_str()).unwrap().handle_docked(target_construct_name),
             ConstructPositionEventReturnType::Denied(error) => ConstructPositionEventReturnType::Denied(error)
         };
+    }
+
+    fn construct_is_part_of_docker_parents(&self, first_docked_construct_name: String, query_construct_name: &String) -> bool {
+        if first_docked_construct_name.eq(query_construct_name) {
+            return true;
+        } else {
+            match self.constructs.get(first_docked_construct_name.as_str()).expect("Looked up a construct_name that does not exist anymore").position.position() {
+                ConstructPositionStatus::Docked(docker_construct_name) => {
+                    self.construct_is_part_of_docker_parents(docker_construct_name.clone(), query_construct_name)
+                }
+                ConstructPositionStatus::Sector(_) => return false
+            }
+        }
     }
 }
 
@@ -244,7 +258,7 @@ mod tests_int {
         assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
 
         assert_eq!(
-            ConstructPositionEventReturnType::Denied("Cannot dock at target that itself is already docked The base1".to_string()),
+            ConstructPositionEventReturnType::Denied("Construct The base2 is already docked at The base1 or one of its docker parents.".to_string()),
             universe.handle_docking_request(the_base2_name.to_string(), the_base1_name.to_string())
         );
 

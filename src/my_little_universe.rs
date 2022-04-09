@@ -380,6 +380,13 @@ mod tests_int {
         );
 
         verify_all_constructs_position(&mut universe, Docked("The_base_2".to_string()), Sector(SectorPosition::new(1, 1, 1)), Docked("The_base_1".to_string()));
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Construct The_base_1 is already docked at The_base_2 or one of its docker parents.".to_string()))),
+            universe.handle_event(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock("The_base_2".to_string())))),
+        );
+
+        verify_all_constructs_position(&mut universe, Docked("The_base_2".to_string()), Sector(SectorPosition::new(1, 1, 1)), Docked("The_base_1".to_string()));
     }
 
     fn verify_all_constructs_position(universe: &mut MyLittleUniverse, transport_position: ConstructPositionStatus, base_1_position: ConstructPositionStatus, base_2_position: ConstructPositionStatus) {
