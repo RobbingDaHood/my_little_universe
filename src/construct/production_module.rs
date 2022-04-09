@@ -135,13 +135,14 @@ impl ProductionModule {
 mod tests_int {
     use crate::construct::amount::Amount;
     use crate::construct::construct::Construct;
+    use crate::construct::construct_position::ConstructPositionSector;
     use crate::construct::production_module::ProductionModule;
     use crate::products::Product;
     use crate::sector::SectorPosition;
 
     #[test]
     fn it_works() {
-        let sector_position = SectorPosition::new(1, 1, 1);
+        let sector_position = ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0);
         let mut construct = Construct::new("The base".to_string(), 500, sector_position);
 
         let mut ore_production = ProductionModule::new(

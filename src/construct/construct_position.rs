@@ -9,7 +9,26 @@ use crate::sector::SectorPosition;
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ConstructPositionStatus {
     Docked(String),
-    Sector(SectorPosition),
+    Sector(ConstructPositionSector),
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct ConstructPositionSector {
+    sector_position: SectorPosition,
+    group_address: usize,
+}
+
+impl ConstructPositionSector {
+    pub fn new(sector_position: SectorPosition, group_address: usize) -> Self {
+        ConstructPositionSector { sector_position, group_address }
+    }
+
+    pub fn sector_position(&self) -> &SectorPosition {
+        &self.sector_position
+    }
+    pub fn group_address(&self) -> usize {
+        self.group_address
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -22,12 +41,12 @@ pub enum ConstructPositionEventType {
 pub enum ExternalConstructPositionEventType {
     Dock(String),
     Undock,
-    EnterSector(SectorPosition),
+    EnterSector(ConstructPositionSector),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum InternalConstructPositionEventType {
-    Undock(SectorPosition),
+    Undock(ConstructPositionSector),
     Undocked(String),
 }
 
@@ -45,7 +64,7 @@ pub struct ConstructPositionState {
 }
 
 impl ConstructPositionState {
-    pub fn new(source_construct_name: String, sector_position: SectorPosition) -> Self {
+    pub fn new(source_construct_name: String, sector_position: ConstructPositionSector) -> Self {
         ConstructPositionState { position: Sector(sector_position), source_construct_name, docker_modules: Vec::new() }
     }
     pub fn position(&self) -> &ConstructPositionStatus {
@@ -181,7 +200,7 @@ mod tests_int {
     use std::collections::HashMap;
 
     use crate::construct::construct::Construct;
-    use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionEventType, ConstructPositionState, ConstructPositionStatus, ExternalConstructPositionEventType, InternalConstructPositionEventType};
+    use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionEventType, ConstructPositionSector, ConstructPositionState, ConstructPositionStatus, ExternalConstructPositionEventType, InternalConstructPositionEventType};
     use crate::construct::construct_position::ConstructPositionEventReturnType::{Denied, RequestProcessed};
     use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
     use crate::my_little_universe::MyLittleUniverse;
@@ -190,7 +209,7 @@ mod tests_int {
 
     #[test]
     fn docking_module() {
-        let sector_position = SectorPosition::new(1, 1, 1);
+        let sector_position = ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0);
         let mut position1 = ConstructPositionState::new("FirstLocation1".to_string(), sector_position.clone());
         let position2 = ConstructPositionState::new("FirstLocation2".to_string(), sector_position.clone());
 
@@ -229,7 +248,7 @@ mod tests_int {
     fn docking_universe() {
         let the_base1_name = "The base1";
         let the_base2_name = "The base2";
-        let sector_position = SectorPosition::new(1, 1, 1);
+        let sector_position = ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0);
         let construct1 = Construct::new(the_base1_name.to_string(), 500, sector_position.clone());
         let mut construct2 = Construct::new(the_base2_name.to_string(), 500, sector_position.clone());
         construct2.position.install();

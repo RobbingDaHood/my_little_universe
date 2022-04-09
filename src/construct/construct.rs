@@ -5,11 +5,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::construct::amount::Amount;
 use crate::construct::construct::ConstructEvenReturnType::{RequestLoadProcessed, RequestUnloadProcessed};
-use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionEventType, ConstructPositionState, ExternalConstructPositionEventType, InternalConstructPositionEventType};
+use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionEventType, ConstructPositionSector, ConstructPositionState, ExternalConstructPositionEventType, InternalConstructPositionEventType};
 use crate::construct::production_module::ProductionModule;
 use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
 use crate::products::Product;
-use crate::sector::SectorPosition;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ConstructEventType {
@@ -51,7 +50,7 @@ pub struct Construct {
 }
 
 impl Construct {
-    pub fn new(name: String, capacity: u32, sector_position: SectorPosition) -> Self {
+    pub fn new(name: String, capacity: u32, sector_position: ConstructPositionSector) -> Self {
         Construct { name: name.clone(), capacity, current_storage: HashMap::new(), modules: Vec::new(), event_stack: Vec::new(), position: ConstructPositionState::new(name.clone(), sector_position) }
     }
 
@@ -235,7 +234,7 @@ fn handle_production_input(current_storage: &mut HashMap<Product, u32>, current_
 mod tests_int {
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
-    use crate::construct::construct_position::{ConstructPositionEventReturnType, ExternalConstructPositionEventType, InternalConstructPositionEventType};
+    use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionSector, ExternalConstructPositionEventType, InternalConstructPositionEventType};
     use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
@@ -244,7 +243,7 @@ mod tests_int {
 
     #[test]
     fn load_and_unload_tries_its_best() {
-        let sector_position = SectorPosition::new(1, 1, 1);
+        let sector_position = ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0);
         let mut construct = Construct::new("The base".to_string(), 500, sector_position);
         assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
 
@@ -269,7 +268,7 @@ mod tests_int {
 
     #[test]
     fn install_and_uninstall_tries_its_best() {
-        let sector_position = SectorPosition::new(1, 1, 1);
+        let sector_position = ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0);
         let mut construct = Construct::new("The base".to_string(), 500, sector_position);
         let ore_production = ProductionModule::new(
             "PowerToOre".to_string(),
@@ -303,7 +302,7 @@ mod tests_int {
 
     #[test]
     fn test_parsing() {
-        let sector_position = SectorPosition::new(1, 1, 1);
+        let sector_position = ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0);
         let mut construct = Construct::new("The base".to_string(), 500, sector_position);
         format!("{:?}", request_state(&mut construct));
     }
@@ -311,7 +310,7 @@ mod tests_int {
 
     #[test]
     fn docking() {
-        let sector_position = SectorPosition::new(1, 1, 1);
+        let sector_position = ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0);
         let mut construct = Construct::new("The base".to_string(), 500, sector_position.clone());
         let construct2 = Construct::new("The base2".to_string(), 500, sector_position.clone());
 
@@ -343,7 +342,7 @@ mod tests_int {
 
     #[test]
     fn production() {
-        let sector_position = SectorPosition::new(1, 1, 1);
+        let sector_position = ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0);
         let mut construct = Construct::new("The base".to_string(), 500, sector_position.clone());
         let ore_production = ProductionModule::new(
             "PowerToOre".to_string(),
