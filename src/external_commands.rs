@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::construct::amount::Amount;
 use crate::construct::construct::{ConstructEvenReturnType, ExternalConstructEventType};
-use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverseReturnValues, OfMoveToSector};
+use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverseReturnValues, OfMoveToSector, OfTransferCargo};
 use crate::products::Product;
 use crate::save_load::{ExternalSaveLoad, ExternalSaveLoadReturnValue};
 use crate::sector::{ExternalSectorEventType, SectorEvenReturnType, SectorPosition};
@@ -94,40 +94,6 @@ impl ExternalCommands {
         let construct_name = command_parts[1];
 
         match command_parts[2] {
-            "RequestLoad" => {
-                if command_parts.len() > 4 {
-                    let product = match command_parts[3] {
-                        "Ores" => { Some(Product::Ores) }
-                        "Metals" => { Some(Product::Metals) }
-                        "PowerCells" => { Some(Product::PowerCells) }
-                        _ => { None }
-                    };
-
-                    if let Some(product_value) = product {
-                        if let Ok(amount) = command_parts[4].parse::<u32>() {
-                            return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::RequestLoad(Amount::new(product_value, amount))));
-                        }
-                    }
-                }
-                return Err(format!("RequestLoad need Product and u32 amount. Got {:?}", command_parts));
-            }
-            "RequestUnload" => {
-                if command_parts.len() > 4 {
-                    let product = match command_parts[3] {
-                        "Ores" => { Some(Product::Ores) }
-                        "Metals" => { Some(Product::Metals) }
-                        "PowerCells" => { Some(Product::PowerCells) }
-                        _ => { None }
-                    };
-
-                    if let Some(product_value) = product {
-                        if let Ok(amount) = command_parts[4].parse::<u32>() {
-                            return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::RequestUnload(Amount::new(product_value, amount))));
-                        }
-                    }
-                }
-                return Err(format!("RequestUnload need Product and u32 amount. Got {:?}", command_parts));
-            }
             "GetConstructState" => {
                 if command_parts.len() > 3 {
                     if let Ok(include_stack) = command_parts[3].parse::<bool>() {
@@ -136,7 +102,7 @@ impl ExternalCommands {
                 } else {
                     return Ok(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::GetConstructState { include_stack: true }));
                 }
-                return Err(format!("GetConstructState optinal booĺ include_stack. Got {:?}", command_parts));
+                return Err(format!("GetConstructState optional booĺ include_stack. Got {:?}", command_parts));
             }
             _ => Err(format!("Unknown Construct command. Got {:?}", command_parts))
         }
@@ -196,17 +162,17 @@ impl ExternalCommands {
             return Err(format!("Universe command needs at least the command name. Got {:?}", command_parts));
         }
 
-        let sector_position = command_parts[3];
-        let sector_position = sector_position.split("-").collect::<Vec<&str>>();
-        let sector_position = SectorPosition::new(
-            sector_position[0].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_position[0]).as_str()),
-            sector_position[1].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_position[1]).as_str()),
-            sector_position[2].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_position[2]).as_str()),
-        );
-
         match command_parts[1] {
             "MoveToSector" => {
                 if command_parts.len() > 3 {
+                    let sector_position = command_parts[3];
+                    let sector_position = sector_position.split("-").collect::<Vec<&str>>();
+                    let sector_position = SectorPosition::new(
+                        sector_position[0].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_position[0]).as_str()),
+                        sector_position[1].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_position[1]).as_str()),
+                        sector_position[2].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_position[2]).as_str()),
+                    );
+
                     if command_parts.len() > 4 {
                         if let Ok(group_address) = command_parts[4].parse::<usize>() {
                             return Ok(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(
@@ -229,6 +195,23 @@ impl ExternalCommands {
                 }
                 return Err(format!("MoveToSector did not parse the command. Got {:?}", command_parts));
             }
+            "TransferCargo" => {
+                if command_parts.len() > 5 {
+                    let product = match command_parts[4] {
+                        "Ores" => { Some(Product::Ores) }
+                        "Metals" => { Some(Product::Metals) }
+                        "PowerCells" => { Some(Product::PowerCells) }
+                        _ => { None }
+                    };
+
+                    if let Some(product_value) = product {
+                        if let Ok(amount) = command_parts[5].parse::<u32>() {
+                            return Ok(ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(OfTransferCargo::new(command_parts[2].to_string(), command_parts[3].to_string(), Amount::new(product_value, amount)))));
+                        }
+                    }
+                }
+                return Err(format!("TransferCargo need source_construct_name target_construct_name product amount. Got {:?}", command_parts));
+            }
             _ => Err(format!("Unknown Universe command. Got {:?}", command_parts))
         }
     }
@@ -238,7 +221,7 @@ impl ExternalCommands {
 mod tests_int {
     use crate::construct::construct::ExternalConstructEventType;
     use crate::external_commands::{Amount, ExternalCommands};
-    use crate::my_little_universe::{ExternalUniverseEventType, OfMoveToSector};
+    use crate::my_little_universe::{ExternalUniverseEventType, OfMoveToSector, OfTransferCargo};
     use crate::products::Product;
     use crate::save_load::ExternalSaveLoad;
     use crate::sector::{ExternalSectorEventType, SectorPosition};
@@ -257,10 +240,6 @@ mod tests_int {
         assert_eq!(ExternalCommands::Time(ExternalTimeEventType::GetTimeStackState { include_stack: true }),
                    ExternalCommands::try_from(&"Time GetTimeStackState".to_string()).unwrap());
 
-        assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 24))),
-                   ExternalCommands::try_from(&"Construct name RequestLoad PowerCells 24".to_string()).unwrap());
-        assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::RequestUnload(Amount::new(Product::Ores, 25))),
-                   ExternalCommands::try_from(&"Construct name RequestUnload Ores 25".to_string()).unwrap());
         assert_eq!(ExternalCommands::Construct("name".to_string(), ExternalConstructEventType::GetConstructState { include_stack: true }),
                    ExternalCommands::try_from(&"Construct name GetConstructState".to_string()).unwrap());
 
@@ -278,6 +257,12 @@ mod tests_int {
                 OfMoveToSector::new("the_construct".to_string(), SectorPosition::new(1, 1, 1), Some(22))
             )),
             ExternalCommands::try_from(&"Universe MoveToSector the_construct 1-1-1 22".to_string()).unwrap()
+        );
+        assert_eq!(
+            ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(
+                OfTransferCargo::new("the_construct_1".to_string(), "the_construct_2".to_string(), Amount::new(Product::Ores, 25))
+            )),
+            ExternalCommands::try_from(&"Universe TransferCargo the_construct_1 the_construct_2 Ores 25".to_string()).unwrap()
         );
 
         assert_eq!(ExternalCommands::Save(ExternalSaveLoad::TheUniverse),

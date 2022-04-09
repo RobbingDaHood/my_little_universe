@@ -20,12 +20,12 @@ pub enum ConstructEventType {
 pub enum InternalConstructEventType {
     ExecuteTurn(u64),
     ConstructPosition(InternalConstructPositionEventType),
+    RequestLoad(Amount),
+    RequestUnload(Amount),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalConstructEventType {
-    RequestLoad(Amount),
-    RequestUnload(Amount),
     GetConstructState { include_stack: bool },
     ConstructPosition(ExternalConstructPositionEventType),
 }
@@ -89,10 +89,10 @@ impl Construct {
                     ConstructEvenReturnType::ConstructState(state)
                 }
             }
-            ConstructEventType::External(ExternalConstructEventType::RequestLoad(request)) => {
+            ConstructEventType::Internal(InternalConstructEventType::RequestLoad(request)) => {
                 RequestLoadProcessed(self.load_request(request))
             }
-            ConstructEventType::External(ExternalConstructEventType::RequestUnload(request)) => {
+            ConstructEventType::Internal(InternalConstructEventType::RequestUnload(request)) => {
                 RequestUnloadProcessed(self.unload_request(request))
             }
             ConstructEventType::External(ExternalConstructEventType::ConstructPosition(construct_position_event)) => {
@@ -451,7 +451,7 @@ mod tests_int {
     }
 
     fn request_load(construct: &mut Construct, amount: Amount) -> u32 {
-        if let ConstructEvenReturnType::RequestLoadProcessed(loaded_value) = construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::RequestLoad(amount))) {
+        if let ConstructEvenReturnType::RequestLoadProcessed(loaded_value) = construct.handle_event(&ConstructEventType::Internal(InternalConstructEventType::RequestLoad(amount))) {
             loaded_value
         } else {
             panic!("request_load failed in test")
@@ -459,7 +459,7 @@ mod tests_int {
     }
 
     fn request_unload(construct: &mut Construct, amount: Amount) -> u32 {
-        if let ConstructEvenReturnType::RequestUnloadProcessed(loaded_value) = construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::RequestUnload(amount))) {
+        if let ConstructEvenReturnType::RequestUnloadProcessed(loaded_value) = construct.handle_event(&ConstructEventType::Internal(InternalConstructEventType::RequestUnload(amount))) {
             loaded_value
         } else {
             panic!("request_load failed in test")

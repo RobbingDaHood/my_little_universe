@@ -5,7 +5,7 @@ use std::ops::Add;
 use serde::{Deserialize, Serialize};
 
 pub use crate::construct::amount::Amount;
-use crate::construct::construct::{Construct, ConstructEventType, ExternalConstructEventType};
+use crate::construct::construct::{Construct, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
 use crate::construct::construct_position::ConstructPositionSector;
 use crate::construct::production_module::ProductionModule;
 use crate::construct_module::ConstructModuleType::Production as ProductionModuleType;
@@ -107,7 +107,7 @@ pub fn generate_performance_test_universe(universe_name: String) -> MyLittleUniv
         );
         assert_eq!(Ok(()), construct.install(ProductionModuleType(ore_production.clone())));
 
-        construct.push_event(&ConstructEventType::External(ExternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 200))));
+        construct.push_event(&ConstructEventType::Internal(InternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 200))));
 
         constructs.insert(construct.name().to_string(), construct);
     }

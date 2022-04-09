@@ -215,63 +215,6 @@ mod tests_int {
 
         check_turn(&main_to_universe_sender, &universe_to_main_receiver, 1);
         check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, None, None, 0);
-
-        send_load_request_to_construct(&main_to_universe_sender, &universe_to_main_receiver, Amount::new(Product::PowerCells, 200));
-        check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&200), None, 0);
-
-        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(2)));
-
-        check_turn(&main_to_universe_sender, &universe_to_main_receiver, 2);
-        check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&199), None, 3);
-
-        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(3)));
-
-        check_turn(&main_to_universe_sender, &universe_to_main_receiver, 3);
-        check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&198), Some(&2), 4);
-
-        send_and_wait(&main_to_universe_sender, &universe_to_main_receiver, ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(10)));
-
-        thread::sleep(Duration::from_secs(1));
-
-        check_turn(&main_to_universe_sender, &universe_to_main_receiver, 10);
-        check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&191), Some(&16), 11);
-
-        send_unload_request_to_construct(&main_to_universe_sender, &universe_to_main_receiver, Amount::new(Product::Ores, 8));
-        check_construct_state(&main_to_universe_sender, &universe_to_main_receiver, Some(&191), Some(&8), 11);
-    }
-
-    fn send_load_request_to_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: Amount) {
-        match main_to_universe_sender.send(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::RequestLoad(request))) {
-            Err(e) => println!("Sender errored: {}", e),
-            _ => {}
-        }
-
-        match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
-            ConstructEvent(station_return) => {
-                match station_return {
-                    ConstructEvenReturnType::RequestLoadProcessed(_) => {}
-                    _ => assert!(false)
-                }
-            }
-            _ => assert!(false)
-        }
-    }
-
-    fn send_unload_request_to_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: Amount) {
-        match main_to_universe_sender.send(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::RequestUnload(request))) {
-            Err(e) => println!("Sender errored: {}", e),
-            _ => {}
-        }
-
-        match universe_to_main_receiver.recv_timeout(Duration::from_secs(1)).unwrap() {
-            ExternalCommandReturnValues::Construct(construct_return) => {
-                match construct_return {
-                    ConstructEvenReturnType::RequestUnloadProcessed(_) => {}
-                    _ => assert!(false)
-                }
-            }
-            _ => assert!(false)
-        }
     }
 
     fn verify_initial_state_of_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>) {

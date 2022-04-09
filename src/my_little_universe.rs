@@ -201,12 +201,12 @@ impl MyLittleUniverse {
                             }
                         }
 
-                        let amount = match self.constructs.get_mut(&transfer_cargo.target_construct_name).unwrap().push_event(&ConstructEventType::External(ExternalConstructEventType::RequestUnload(transfer_cargo.amount.clone()))) {
+                        let amount = match self.constructs.get_mut(&transfer_cargo.target_construct_name).unwrap().push_event(&ConstructEventType::Internal(InternalConstructEventType::RequestUnload(transfer_cargo.amount.clone()))) {
                             ConstructEvenReturnType::RequestUnloadProcessed(amount) => amount.clone(),
                             return_value => return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied(format!("Could not unload {:?} from {}, got this message {:?}", transfer_cargo.amount, transfer_cargo.target_construct_name, return_value)))
                         };
 
-                        let amount = match self.constructs.get_mut(&transfer_cargo.source_construct_name).unwrap().push_event(&ConstructEventType::External(ExternalConstructEventType::RequestLoad(Amount::new(transfer_cargo.amount.product().clone(), amount)))) {
+                        let amount = match self.constructs.get_mut(&transfer_cargo.source_construct_name).unwrap().push_event(&ConstructEventType::Internal(InternalConstructEventType::RequestLoad(Amount::new(transfer_cargo.amount.product().clone(), amount)))) {
                             ConstructEvenReturnType::RequestLoadProcessed(amount) => amount,
                             return_value => return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied(format!("Could not load {:?} from {}, got this message {:?}", transfer_cargo.amount, transfer_cargo.source_construct_name, return_value)))
                         };
@@ -312,7 +312,7 @@ mod tests_int {
 
     use crate::{ExternalCommandReturnValues, ExternalCommands};
     use crate::construct::amount::Amount;
-    use crate::construct::construct::{Construct, ConstructEvenReturnType, ExternalConstructEventType};
+    use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
     use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionSector, ConstructPositionStatus, ExternalConstructPositionEventType};
     use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
     use crate::construct::production_module::ProductionModule;
@@ -338,18 +338,19 @@ mod tests_int {
         assert_eq!(Ok(()), construct.install(Production(ore_production.clone())));
 
         let mut constructs: HashMap<String, Construct> = HashMap::new();
-        constructs.insert(construct.name().to_string(), construct);
+        let construct_name = construct.name().to_string();
+        constructs.insert(construct_name.clone(), construct);
 
         let mut universe = MyLittleUniverse::new("universe_name".to_string(), TimeStackState::new(), constructs, HashMap::new());
 
         //testing
         assert_eq!(
-            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestLoadProcessed(200)),
-            universe.handle_event(ExternalCommands::Construct("The base".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 200))))
+            ConstructEvenReturnType::RequestLoadProcessed(200),
+            universe.constructs.get_mut(construct_name.as_str().clone()).unwrap().push_event(&ConstructEventType::Internal(InternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 200))))
         );
         assert_eq!(
-            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestUnloadProcessed(0)),
-            universe.handle_event(ExternalCommands::Construct("The base".to_string(), ExternalConstructEventType::RequestUnload(Amount::new(Product::Ores, 2))))
+            ConstructEvenReturnType::RequestUnloadProcessed(0),
+            universe.constructs.get_mut(construct_name.as_str().clone()).unwrap().push_event(&ConstructEventType::Internal(InternalConstructEventType::RequestUnload(Amount::new(Product::Ores, 2))))
         );
 
         assert_eq!(
@@ -367,8 +368,8 @@ mod tests_int {
         );
 
         assert_eq!(
-            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestUnloadProcessed(2)),
-            universe.handle_event(ExternalCommands::Construct("The base".to_string(), ExternalConstructEventType::RequestUnload(Amount::new(Product::Ores, 2))))
+            ConstructEvenReturnType::RequestUnloadProcessed(2),
+            universe.constructs.get_mut(construct_name.as_str().clone()).unwrap().push_event(&ConstructEventType::Internal(InternalConstructEventType::RequestUnload(Amount::new(Product::Ores, 2))))
         );
 
         assert_eq!(
@@ -577,18 +578,8 @@ mod tests_int {
         let mut universe = generate_simple_universe("the_universe".to_string());
 
         assert_eq!(
-            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestLoadProcessed(200)),
-            universe.handle_event(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 200)))),
-        );
-
-        assert_eq!(
-            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestLoadProcessed(200)),
-            universe.handle_event(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::Ores, 200)))),
-        );
-
-        assert_eq!(
-            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestLoadProcessed(200)),
-            universe.handle_event(ExternalCommands::Construct("The_base_2".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::Metals, 200)))),
+            ConstructEvenReturnType::RequestLoadProcessed(200),
+            universe.constructs.get_mut("The_base_1").unwrap().push_event(&ConstructEventType::Internal(InternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 200))))
         );
 
         assert_eq!(
