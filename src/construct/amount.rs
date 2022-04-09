@@ -1,5 +1,6 @@
-use crate::products::Product;
 use serde::{Deserialize, Serialize};
+
+use crate::products::Product;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Amount {

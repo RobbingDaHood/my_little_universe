@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::{ExternalCommandReturnValues, ExternalCommands};
 use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
 use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionEventType, ConstructPositionSector, ConstructPositionStatus, ExternalConstructPositionEventType, InternalConstructPositionEventType};
+use crate::external_commands::Amount;
 use crate::save_load::ExternalSaveLoad;
 use crate::sector::{ExternalSectorEventType, InternalSectorEventType, Sector, SectorEvenReturnType, SectorEventType, SectorPosition};
 use crate::sector::SectorEvenReturnType::{Denied, Entered};
@@ -21,6 +22,20 @@ pub struct MyLittleUniverse {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalUniverseEventType {
     MoveToSector(OfMoveToSector),
+    TransferCargo(OfTransferCargo),
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub struct OfTransferCargo {
+    source_construct_name: String,
+    target_construct_name: String,
+    amount: Amount,
+}
+
+impl OfTransferCargo {
+    pub fn new(source_construct_name: String, target_construct_name: String, amount: Amount) -> Self {
+        OfTransferCargo { source_construct_name, target_construct_name, amount }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -43,6 +58,8 @@ pub enum MyLittleUniverseReturnValues {
     CouldNotFindSector(SectorPosition),
     MovedToSector(usize),
     CouldNotMoveToSector(String),
+    Denied(String),
+    CargoTransfered(u32),
 }
 
 impl MyLittleUniverse {
@@ -148,7 +165,54 @@ impl MyLittleUniverse {
             }
             ExternalCommands::Universe(event) => {
                 match event {
-                    ExternalUniverseEventType::MoveToSector(of_move_to_sector) => ExternalCommandReturnValues::Universe(self.move_to_sector(of_move_to_sector))
+                    ExternalUniverseEventType::MoveToSector(of_move_to_sector) => ExternalCommandReturnValues::Universe(self.move_to_sector(of_move_to_sector)),
+                    ExternalUniverseEventType::TransferCargo(transfer_cargo) => {
+                        if transfer_cargo.source_construct_name.eq(&transfer_cargo.target_construct_name) {
+                            return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied(format!("Cannot transfer because source {} and target {} construct is the same", transfer_cargo.source_construct_name, transfer_cargo.target_construct_name)));
+                        }
+
+                        let source_construct = match self.constructs.get(&transfer_cargo.source_construct_name) {
+                            None => return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindConstruct(transfer_cargo.source_construct_name.clone())),
+                            Some(source_construct) => source_construct
+                        };
+
+                        let target_construct = match self.constructs.get(&transfer_cargo.target_construct_name) {
+                            None => return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindConstruct(transfer_cargo.target_construct_name.clone())),
+                            Some(target_construct) => target_construct
+                        };
+
+                        match source_construct.position.position() {
+                            ConstructPositionStatus::Sector(source_position) => {
+                                match target_construct.position.position() {
+                                    ConstructPositionStatus::Sector(target_position) => {
+                                        return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied(format!("Cannot transfer, because {} is docked at {:?} and {} is docked at {:?}; One need to be docked at the other.", transfer_cargo.source_construct_name, source_position, transfer_cargo.target_construct_name, target_position)));
+                                    }
+                                    ConstructPositionStatus::Docked(target_docked_at_name) => {
+                                        if target_docked_at_name.ne(&transfer_cargo.source_construct_name) {
+                                            return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied(format!("Cannot transfer, because {} is docked at {:?} and {} is docked at {:?}; One need to be docked at the other.", transfer_cargo.source_construct_name, source_position, transfer_cargo.target_construct_name, target_docked_at_name)));
+                                        } else {}
+                                    }
+                                }
+                            }
+                            ConstructPositionStatus::Docked(source_docked_at_name) => {
+                                if source_docked_at_name.ne(&transfer_cargo.target_construct_name) {
+                                    return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied(format!("Cannot transfer, because {} is docked at {:?} and that is not {}.", transfer_cargo.source_construct_name, source_docked_at_name, transfer_cargo.target_construct_name)));
+                                } else {}
+                            }
+                        }
+
+                        let amount = match self.constructs.get_mut(&transfer_cargo.target_construct_name).unwrap().push_event(&ConstructEventType::External(ExternalConstructEventType::RequestUnload(transfer_cargo.amount.clone()))) {
+                            ConstructEvenReturnType::RequestUnloadProcessed(amount) => amount.clone(),
+                            return_value => return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied(format!("Could not unload {:?} from {}, got this message {:?}", transfer_cargo.amount, transfer_cargo.target_construct_name, return_value)))
+                        };
+
+                        let amount = match self.constructs.get_mut(&transfer_cargo.source_construct_name).unwrap().push_event(&ConstructEventType::External(ExternalConstructEventType::RequestLoad(Amount::new(transfer_cargo.amount.product().clone(), amount)))) {
+                            ConstructEvenReturnType::RequestLoadProcessed(amount) => amount,
+                            return_value => return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied(format!("Could not load {:?} from {}, got this message {:?}", transfer_cargo.amount, transfer_cargo.source_construct_name, return_value)))
+                        };
+
+                        ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CargoTransfered(amount))
+                    }
                 }
             }
         }
@@ -253,7 +317,7 @@ mod tests_int {
     use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
-    use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverse, MyLittleUniverseReturnValues, OfMoveToSector};
+    use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverse, MyLittleUniverseReturnValues, OfMoveToSector, OfTransferCargo};
     use crate::products::Product;
     use crate::sector::{ExternalSectorEventType, SectorEvenReturnType, SectorPosition};
     use crate::time::{ExternalTimeEventType, TimeEventReturnType, TimeStackState};
@@ -280,7 +344,7 @@ mod tests_int {
 
         //testing
         assert_eq!(
-            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestLoadProcessed(0)),
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestLoadProcessed(200)),
             universe.handle_event(ExternalCommands::Construct("The base".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 200))))
         );
         assert_eq!(
@@ -505,6 +569,103 @@ mod tests_int {
                                        Docked("The_base_2".to_string()),
                                        Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
                                        Docked("The_base_1".to_string()),
+        );
+    }
+
+    #[test]
+    fn transfering() {
+        let mut universe = generate_simple_universe("the_universe".to_string());
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestLoadProcessed(200)),
+            universe.handle_event(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 200)))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestLoadProcessed(200)),
+            universe.handle_event(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::Ores, 200)))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestLoadProcessed(200)),
+            universe.handle_event(ExternalCommands::Construct("The_base_2".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::Metals, 200)))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied("Cannot transfer because source transport and target transport construct is the same".to_string())),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(OfTransferCargo::new(
+                "transport".to_string(),
+                "transport".to_string(),
+                Amount::new(Product::Metals, 100),
+            )))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied("Cannot transfer, because transport is docked at ConstructPositionSector { sector_position: SectorPosition { x: 1, y: 1, z: 1 }, group_address: 0 } and The_base_1 is docked at ConstructPositionSector { sector_position: SectorPosition { x: 1, y: 1, z: 1 }, group_address: 0 }; One need to be docked at the other.".to_string())),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(OfTransferCargo::new(
+                "transport".to_string(),
+                "The_base_1".to_string(),
+                Amount::new(Product::Metals, 100),
+            )))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed)),
+            universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock("The_base_1".to_string())))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CargoTransfered(0)),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(OfTransferCargo::new(
+                "transport".to_string(),
+                "The_base_1".to_string(),
+                Amount::new(Product::Metals, 100),
+            )))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CargoTransfered(50)),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(OfTransferCargo::new(
+                "transport".to_string(),
+                "The_base_1".to_string(),
+                Amount::new(Product::PowerCells, 50),
+            )))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CargoTransfered(150)),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(OfTransferCargo::new(
+                "transport".to_string(),
+                "The_base_1".to_string(),
+                Amount::new(Product::PowerCells, 200),
+            )))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CargoTransfered(0)),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(OfTransferCargo::new(
+                "transport".to_string(),
+                "The_base_1".to_string(),
+                Amount::new(Product::PowerCells, 200),
+            )))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CargoTransfered(200)),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(OfTransferCargo::new(
+                "The_base_1".to_string(),
+                "transport".to_string(),
+                Amount::new(Product::PowerCells, 300),
+            )))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CargoTransfered(0)),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(OfTransferCargo::new(
+                "The_base_1".to_string(),
+                "transport".to_string(),
+                Amount::new(Product::PowerCells, 300),
+            )))),
         );
     }
 

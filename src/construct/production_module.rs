@@ -73,9 +73,9 @@ impl ProductionModule {
 
     fn add_all_outputs(&mut self, construct: &mut Construct) {
         for output in &mut self.output {
-            let leftover = construct.load_request(&Amount::new(output.product().clone(), output.amount()));
+            let moved_amount = construct.load_request(&Amount::new(output.product().clone(), output.amount()));
 
-            if leftover != 0 {
+            if moved_amount != output.amount() {
                 panic!("Concurrency issue: add_all_outputs should be called right after have_room_for_outputs and ensure room")
             }
         }

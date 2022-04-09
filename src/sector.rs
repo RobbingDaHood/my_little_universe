@@ -17,7 +17,7 @@ pub enum InternalSectorEventType {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalSectorEventType {
     GetSectorState,
-    MoveToGroup(String, Option<usize>),
+    MoveToGroup(String, Option<usize>)
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]

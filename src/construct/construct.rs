@@ -122,11 +122,7 @@ impl Construct {
 
         load(&mut self.current_storage, &Amount::new(amount.product().clone(), amount_to_be_stored));
 
-        if amount_to_be_stored >= amount.amount() {
-            0
-        } else {
-            amount.amount() - amount_to_be_stored
-        }
+        amount_to_be_stored
     }
 
     pub fn install(&mut self, new_module: ConstructModuleType) -> Result<(), String> {
@@ -247,13 +243,13 @@ mod tests_int {
         let mut construct = Construct::new("The base".to_string(), 500, sector_position);
         assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
 
-        assert_eq!(200, request_load(&mut construct, Amount::new(Product::PowerCells, 700)));
+        assert_eq!(500, request_load(&mut construct, Amount::new(Product::PowerCells, 700)));
         assert_eq!(500, *construct.current_storage.get(&Product::PowerCells).unwrap());
 
         assert_eq!(500, request_unload(&mut construct, Amount::new(Product::PowerCells, 700)));
         assert_eq!(None, construct.current_storage.get(&Product::PowerCells));
 
-        assert_eq!(200, request_load(&mut construct, Amount::new(Product::PowerCells, 700)));
+        assert_eq!(500, request_load(&mut construct, Amount::new(Product::PowerCells, 700)));
         assert_eq!(500, *construct.current_storage.get(&Product::PowerCells).unwrap());
 
         assert_eq!(700, request_load(&mut construct, Amount::new(Product::PowerCells, 700)));
@@ -365,7 +361,7 @@ mod tests_int {
         assert_eq!(None, construct.current_storage.get(&Product::Ores));
         assert_eq!(None, construct.current_storage.get(&Product::Metals));
 
-        assert_eq!(0, request_load(&mut construct, Amount::new(Product::PowerCells, 200)));
+        assert_eq!(200, request_load(&mut construct, Amount::new(Product::PowerCells, 200)));
 
         next_turn(&mut construct, 1);
 
