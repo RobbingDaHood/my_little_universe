@@ -241,7 +241,7 @@ mod tests_int {
     }
 
     fn send_load_request_to_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: Amount) {
-        match main_to_universe_sender.send(ExternalCommands::Construct("The_base".to_string(), ExternalConstructEventType::RequestLoad(request))) {
+        match main_to_universe_sender.send(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::RequestLoad(request))) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
         }
@@ -258,7 +258,7 @@ mod tests_int {
     }
 
     fn send_unload_request_to_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, request: Amount) {
-        match main_to_universe_sender.send(ExternalCommands::Construct("The_base".to_string(), ExternalConstructEventType::RequestUnload(request))) {
+        match main_to_universe_sender.send(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::RequestUnload(request))) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
         }
@@ -275,7 +275,7 @@ mod tests_int {
     }
 
     fn verify_initial_state_of_construct(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>) {
-        match main_to_universe_sender.send(ExternalCommands::Construct("The_base".to_string(), ExternalConstructEventType::GetConstructState { include_stack: true })) {
+        match main_to_universe_sender.send(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::GetConstructState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
         }
@@ -284,7 +284,8 @@ mod tests_int {
             ConstructEvent(station_return) => {
                 match station_return {
                     ConstructState(construct_state) => {
-                        assert_eq!("The_base", construct_state.name());
+                        println!("construct_state: {:?}", construct_state);
+                        assert_eq!("The_base_1", construct_state.name());
                         //assert_eq!(1, construct_state.event_stack().len());
 
                         assert_eq!(500, construct_state.capacity());
@@ -305,7 +306,6 @@ mod tests_int {
                             .next()
                             .unwrap();
 
-
                         assert_eq!(0, production.production_trigger_time());
                         assert_eq!(1, production.production_time());
                         assert_eq!(false, production.stored_output());
@@ -321,7 +321,7 @@ mod tests_int {
     }
 
     fn check_construct_state(main_to_universe_sender: &Sender<ExternalCommands>, universe_to_main_receiver: &Receiver<ExternalCommandReturnValues>, expected_first_input_current_storage: Option<&u32>, expected_first_output_current_storage: Option<&u32>, production_trigger_time: u64) {
-        match main_to_universe_sender.send(ExternalCommands::Construct("The_base".to_string(), ExternalConstructEventType::GetConstructState { include_stack: true })) {
+        match main_to_universe_sender.send(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::GetConstructState { include_stack: true })) {
             Err(e) => println!("Sender errored: {}", e),
             _ => {}
         }

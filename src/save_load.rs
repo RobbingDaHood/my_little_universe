@@ -70,8 +70,15 @@ impl MyLittleUniverse {
             .expect(&format!("Failed to create time save file, got: {}", &file_path).as_str());
 
         file.write_all("{".as_bytes()).expect("Had trouble saving station to file.");
+
+        let mut count = 0;
         for (construct_name, construct) in self.constructs() {
-            file.write_all(format!("\"{}\":{}", construct_name, json!(construct)).as_bytes()).expect("Had trouble saving station to file.");
+            count += 1;
+            if self.constructs.len() > count {
+                file.write_all(format!("\"{}\":{},", construct_name, json!(construct)).as_bytes()).expect("Had trouble saving station to file.");
+            } else {
+                file.write_all(format!("\"{}\":{}", construct_name, json!(construct)).as_bytes()).expect("Had trouble saving station to file.");
+            }
         }
         file.write_all("}".as_bytes()).expect("Had trouble saving station to file.");
     }

@@ -48,19 +48,33 @@ fn read_universe_generator_config_file(config_name: &String) -> UniverseGenerato
 }
 
 pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
-    let sector_position = SectorPosition::new(1, 1, 1);
-    let mut construct = Construct::new("The_base".to_string(), 500, sector_position);
-    let ore_production = ProductionModule::new(
+
+    let sector_position_1 = SectorPosition::new(1, 1, 1);
+    let mut construct_1 = Construct::new("The_base_1".to_string(), 500, sector_position_1.clone());
+    assert_eq!(Ok(()), construct_1.install(ProductionModuleType(ProductionModule::new(
         "PowerToOre".to_string(),
         vec![Amount::new(Product::PowerCells, 1)],
         vec![Amount::new(Product::Ores, 2)],
         1,
         0,
-    );
-    assert_eq!(Ok(()), construct.install(ProductionModuleType(ore_production.clone())));
+    ))));
+
+    let sector_position_2 = SectorPosition::new(2, 2, 2);
+    let mut construct_2 = Construct::new("The_base_2".to_string(), 500, sector_position_2);
+    assert_eq!(Ok(()), construct_2.install(ProductionModuleType(ProductionModule::new(
+        "OreToPower".to_string(),
+        vec![Amount::new(Product::Ores, 1)],
+        vec![Amount::new(Product::Metals, 2)],
+        1,
+        0,
+    ))));
+
+    let transport_construct = Construct::new("transport".to_string(), 500, sector_position_1);
 
     let mut constructs: HashMap<String, Construct> = HashMap::new();
-    constructs.insert(construct.name().to_string(), construct);
+    constructs.insert(construct_1.name().to_string(), construct_1);
+    constructs.insert(construct_2.name().to_string(), construct_2);
+    constructs.insert(transport_construct.name().to_string(), transport_construct);
 
     MyLittleUniverse::new(universe_name, TimeStackState::new(), constructs, HashMap::new())
 }

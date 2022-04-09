@@ -21,6 +21,7 @@ pub struct MyLittleUniverse {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalUniverseEventType {
     MoveToSector(OfMoveToSector),
+    //TODO Undock (nned to know the parents parents sector, remove docker chain limit, check for cirkular dependencies (Docked could contain the whole chain? No what if the middle undocuks).
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -150,7 +151,6 @@ impl MyLittleUniverse {
         match self.sectors.get_mut(&of_move_to_sector.sector_position) {
             Some(target_sector) => {
                 if let Entered(group_id) = target_sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Enter(of_move_to_sector.construct_name.clone(), of_move_to_sector.group_address))) {
-
                     return MyLittleUniverseReturnValues::MovedToSector(group_id);
                 } else {
                     panic!("Constructs are in bad state; It is removed from one sector but not added to the new one. Construct_name: {}; Reason: Target did not accept construct entering.", of_move_to_sector.construct_name);
@@ -177,7 +177,7 @@ impl MyLittleUniverse {
 mod tests_int {
     use std::collections::HashMap;
 
-    use crate::{ExternalCommandReturnValues, ExternalCommands};
+    use crate::{ExternalCommandReturnValues, ExternalCommands, MainConfig};
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ExternalConstructEventType};
     use crate::construct::production_module::ProductionModule;
@@ -186,6 +186,7 @@ mod tests_int {
     use crate::products::Product;
     use crate::sector::SectorPosition;
     use crate::time::{ExternalTimeEventType, TimeEventReturnType, TimeStackState};
+    use crate::universe_generator::{generate_simple_universe, generate_universe};
 
     #[test]
     fn it_works() {
@@ -239,5 +240,25 @@ mod tests_int {
             ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindConstruct("!The base".to_string())),
             universe.handle_event(ExternalCommands::Construct("!The base".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })),
         );
+    }
+
+
+    #[test]
+    fn move_sectors() {
+        let mut universe = generate_simple_universe("the_universe".to_string());
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestLoadProcessed(0)),
+            universe.handle_event(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 200))))
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Time(TimeEventReturnType::Received),
+            universe.handle_event(ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(100)))
+        );
+        universe.request_execute_turn();
+        universe.request_execute_turn();
+
+
     }
 }

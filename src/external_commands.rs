@@ -206,8 +206,8 @@ impl ExternalCommands {
 
         match command_parts[1] {
             "MoveToSector" => {
-                if command_parts.len() > 4 {
-                    if command_parts.len() > 5 {
+                if command_parts.len() > 3 {
+                    if command_parts.len() > 4 {
                         if let Ok(group_address) = command_parts[4].parse::<usize>() {
                             return Ok(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(
                                 OfMoveToSector::new(
@@ -238,6 +238,7 @@ impl ExternalCommands {
 mod tests_int {
     use crate::construct::construct::ExternalConstructEventType;
     use crate::external_commands::{Amount, ExternalCommands};
+    use crate::my_little_universe::{ExternalUniverseEventType, OfMoveToSector};
     use crate::products::Product;
     use crate::save_load::ExternalSaveLoad;
     use crate::sector::{ExternalSectorEventType, SectorPosition};
@@ -265,6 +266,19 @@ mod tests_int {
 
         assert_eq!(ExternalCommands::Sector(SectorPosition::new(1, 1, 1), ExternalSectorEventType::GetSectorState),
                    ExternalCommands::try_from(&"Sector 1-1-1 GetSectorState".to_string()).unwrap());
+
+        assert_eq!(
+            ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(
+                OfMoveToSector::new("the_construct".to_string(), SectorPosition::new(1, 1, 1), None)
+            )),
+            ExternalCommands::try_from(&"Universe MoveToSector the_construct 1-1-1".to_string()).unwrap()
+        );
+        assert_eq!(
+            ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(
+                OfMoveToSector::new("the_construct".to_string(), SectorPosition::new(1, 1, 1), Some(22))
+            )),
+            ExternalCommands::try_from(&"Universe MoveToSector the_construct 1-1-1 22".to_string()).unwrap()
+        );
 
         assert_eq!(ExternalCommands::Save(ExternalSaveLoad::TheUniverse),
                    ExternalCommands::try_from(&"Save TheUniverse".to_string()).unwrap());
