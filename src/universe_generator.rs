@@ -57,6 +57,7 @@ pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
         1,
         0,
     ))));
+    construct_1.position.install();
 
     let sector_position_2 = SectorPosition::new(2, 2, 2);
     let mut construct_2 = Construct::new("The_base_2".to_string(), 500, sector_position_2.clone());
@@ -67,6 +68,7 @@ pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
         1,
         0,
     ))));
+    construct_2.position.install();
 
     let transport_construct = Construct::new("transport".to_string(), 500, sector_position_1.clone());
 

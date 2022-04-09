@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::construct::amount::Amount;
 use crate::construct::construct::ConstructEvenReturnType::{RequestLoadProcessed, RequestUnloadProcessed};
-use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionState, ExternalConstructPositionEventType};
+use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionEventType, ConstructPositionState, ExternalConstructPositionEventType, InternalConstructPositionEventType};
 use crate::construct::production_module::ProductionModule;
 use crate::construct_module::{CanHandleNextTurn, ConstructModuleType};
 use crate::products::Product;
@@ -20,6 +20,7 @@ pub enum ConstructEventType {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum InternalConstructEventType {
     ExecuteTurn(u64),
+    ConstructPosition(InternalConstructPositionEventType),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -95,12 +96,15 @@ impl Construct {
             ConstructEventType::External(ExternalConstructEventType::RequestUnload(request)) => {
                 RequestUnloadProcessed(self.unload_request(request))
             }
+            ConstructEventType::External(ExternalConstructEventType::ConstructPosition(construct_position_event)) => {
+                ConstructEvenReturnType::ConstructPosition(self.position.handle_event(&ConstructPositionEventType::External(construct_position_event.clone())))
+            }
             ConstructEventType::Internal(InternalConstructEventType::ExecuteTurn(current_turn)) => {
                 self.next_turn(&current_turn);
                 ConstructEvenReturnType::TurnExecuted
             }
-            ConstructEventType::External(ExternalConstructEventType::ConstructPosition(construct_position_event)) => {
-                ConstructEvenReturnType::ConstructPosition(self.position.handle_event(&construct_position_event))
+            ConstructEventType::Internal(InternalConstructEventType::ConstructPosition(construct_position_event)) => {
+                ConstructEvenReturnType::ConstructPosition(self.position.handle_event(&ConstructPositionEventType::Internal(construct_position_event.clone())))
             }
         };
     }
@@ -231,7 +235,7 @@ fn handle_production_input(current_storage: &mut HashMap<Product, u32>, current_
 mod tests_int {
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
-    use crate::construct::construct_position::{ConstructPositionEventReturnType, ExternalConstructPositionEventType};
+    use crate::construct::construct_position::{ConstructPositionEventReturnType, ExternalConstructPositionEventType, InternalConstructPositionEventType};
     use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
@@ -325,8 +329,14 @@ mod tests_int {
         assert_eq!(Docked(construct2.name().to_string()), *construct.position.position());
 
         assert_eq!(
+            ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("External Undock should never hit construct, use internal dock instead that contains all relevant information".to_string())),
+            construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Undock)))
+        );
+        assert_eq!(Docked(construct2.name().to_string()), *construct.position.position());
+
+        assert_eq!(
             ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed),
-            construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Undock(sector_position.clone()))))
+            construct.handle_event(&ConstructEventType::Internal(InternalConstructEventType::ConstructPosition(InternalConstructPositionEventType::Undock(sector_position.clone()))))
         );
         assert_eq!(Sector(sector_position.clone()), *construct.position.position());
     }

@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{ExternalCommandReturnValues, ExternalCommands};
-use crate::construct::construct::{Construct, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
-use crate::construct::construct_position::{ConstructPositionStatus, ExternalConstructPositionEventType};
+use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
+use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionEventType, ConstructPositionStatus, ExternalConstructPositionEventType, InternalConstructPositionEventType};
 use crate::save_load::ExternalSaveLoad;
 use crate::sector::{InternalSectorEventType, Sector, SectorEvenReturnType, SectorEventType, SectorPosition};
 use crate::sector::SectorEvenReturnType::{Denied, Entered};
@@ -21,7 +21,6 @@ pub struct MyLittleUniverse {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalUniverseEventType {
     MoveToSector(OfMoveToSector),
-    //TODO Undock (nned to know the parents parents sector, remove docker chain limit, check for cirkular dependencies (Docked could contain the whole chain? No what if the middle undocuks).
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -55,11 +54,9 @@ impl MyLittleUniverse {
             sectors,
         }
     }
-
     pub fn time(&self) -> &TimeStackState {
         &self.time
     }
-
     pub fn constructs(&self) -> &HashMap<String, Construct> {
         &self.constructs
     }
@@ -74,13 +71,42 @@ impl MyLittleUniverse {
                 ExternalCommandReturnValues::Time(return_type)
             }
             ExternalCommands::Construct(construct_name, construct_event) => {
-                return match self.constructs.get_mut(&construct_name) {
-                    Some(construct) => {
-                        let return_type = construct.push_event(&ConstructEventType::External(construct_event));
+                match construct_event {
+                    ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Undock) => {
+                        let docked_at_name = match self.constructs.get(&construct_name) {
+                            Some(construct) => {
+                                match construct.position.position() {
+                                    ConstructPositionStatus::Sector(sector_name) =>
+                                        return ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied(format!("Cannot undock because is not docked. Is in sector {:?}", sector_name)))),
+                                    ConstructPositionStatus::Docked(the_docked_at_name) => the_docked_at_name.clone()
+                                }
+                            }
+                            None => { return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindConstruct(construct_name)) }
+                        };
+
+                        self.constructs.get_mut(&docked_at_name)
+                            .expect("The construct does not exists in universe list of constructs")
+                            .position.handle_event(&ConstructPositionEventType::Internal(InternalConstructPositionEventType::Undocked(construct_name.clone())));
+
+                        let sector_position = self.get_sector_position(construct_name.clone()).clone();
+                        let construct = self.constructs.get_mut(&construct_name).unwrap();
+                        let return_type = construct.push_event(&ConstructEventType::Internal(InternalConstructEventType::ConstructPosition(InternalConstructPositionEventType::Undock(sector_position.clone()))));
+
                         ExternalCommandReturnValues::Construct(return_type)
                     }
-                    None => { ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindConstruct(construct_name)) }
-                };
+                    ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock(target_construct_name)) => {
+                        return ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(self.handle_docking_request(construct_name, target_construct_name)));
+                    }
+                    _ => {
+                        return match self.constructs.get_mut(&construct_name) {
+                            Some(construct) => {
+                                let return_type = construct.push_event(&ConstructEventType::External(construct_event));
+                                ExternalCommandReturnValues::Construct(return_type)
+                            }
+                            None => { ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindConstruct(construct_name)) }
+                        };
+                    }
+                }
             }
             ExternalCommands::Save(save_event) => {
                 match save_event {
@@ -109,11 +135,21 @@ impl MyLittleUniverse {
         }
     }
 
+    fn get_sector_position(&self, construct_name: String) -> &SectorPosition {
+        match self.constructs.get(construct_name.as_str()).expect("Looked up a construct_name that does not exist anymore").position.position() {
+            ConstructPositionStatus::Docked(docker_construct_name) => {
+                self.get_sector_position(docker_construct_name.clone())
+            }
+            ConstructPositionStatus::Sector(sector_position) => sector_position
+        }
+    }
+
     fn move_to_sector(&mut self, of_move_to_sector: OfMoveToSector) -> MyLittleUniverseReturnValues {
         if !self.sectors.contains_key(&of_move_to_sector.sector_position) {
             return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Target sector does not exist {:?}", of_move_to_sector.sector_position));
         }
 
+        //Handling construct and source target first.
         match self.constructs.get_mut(&of_move_to_sector.construct_name) {
             Some(construct) => {
                 let position = construct.position().position();
@@ -152,6 +188,7 @@ impl MyLittleUniverse {
             }
         }
 
+        //Then handle target sector
         match self.sectors.get_mut(&of_move_to_sector.sector_position) {
             Some(target_sector) => {
                 if let Entered(group_id) = target_sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Enter(of_move_to_sector.construct_name.clone(), of_move_to_sector.group_address))) {
@@ -184,7 +221,8 @@ mod tests_int {
     use crate::{ExternalCommandReturnValues, ExternalCommands};
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ExternalConstructEventType};
-    use crate::construct::construct_position::ConstructPositionStatus::Sector;
+    use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionStatus, ExternalConstructPositionEventType};
+    use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
     use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverse, MyLittleUniverseReturnValues, OfMoveToSector};
@@ -247,7 +285,6 @@ mod tests_int {
         );
     }
 
-
     #[test]
     fn move_sectors() {
         let mut universe = generate_simple_universe("the_universe".to_string());
@@ -287,5 +324,81 @@ mod tests_int {
             ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Target sector does not exist SectorPosition { x: 3, y: 3, z: 3 }".to_string())),
             universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("transport".to_string(), SectorPosition::new(3, 3, 3), None)))),
         );
+    }
+
+    #[test]
+    fn docking() {
+        let mut universe = generate_simple_universe("the_universe".to_string());
+
+        verify_all_constructs_position(&mut universe, Sector(SectorPosition::new(1, 1, 1)), Sector(SectorPosition::new(1, 1, 1)), Sector(SectorPosition::new(2, 2, 2)));
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Target has no free docking slots transport".to_string()))),
+            universe.handle_event(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock("transport".to_string())))),
+        );
+
+        verify_all_constructs_position(&mut universe, Sector(SectorPosition::new(1, 1, 1)), Sector(SectorPosition::new(1, 1, 1)), Sector(SectorPosition::new(2, 2, 2)));
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed)),
+            universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock("The_base_2".to_string())))),
+        );
+
+        verify_all_constructs_position(&mut universe, Docked("The_base_2".to_string()), Sector(SectorPosition::new(1, 1, 1)), Sector(SectorPosition::new(2, 2, 2)));
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Construct transport is already docked at The_base_2 so cannot dock again. Use Undock first.".to_string()))),
+            universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock("The_base_2".to_string())))),
+        );
+
+        verify_all_constructs_position(&mut universe, Docked("The_base_2".to_string()), Sector(SectorPosition::new(1, 1, 1)), Sector(SectorPosition::new(2, 2, 2)));
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed)),
+            universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Undock))),
+        );
+
+        verify_all_constructs_position(&mut universe, Sector(SectorPosition::new(2, 2, 2)), Sector(SectorPosition::new(1, 1, 1)), Sector(SectorPosition::new(2, 2, 2)));
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Cannot undock because is not docked. Is in sector SectorPosition { x: 2, y: 2, z: 2 }".to_string()))),
+            universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Undock))),
+        );
+
+        verify_all_constructs_position(&mut universe, Sector(SectorPosition::new(2, 2, 2)), Sector(SectorPosition::new(1, 1, 1)), Sector(SectorPosition::new(2, 2, 2)));
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed)),
+            universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock("The_base_2".to_string())))),
+        );
+
+        verify_all_constructs_position(&mut universe, Docked("The_base_2".to_string()), Sector(SectorPosition::new(1, 1, 1)), Sector(SectorPosition::new(2, 2, 2)));
+
+        assert_eq!(
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed)),
+            universe.handle_event(ExternalCommands::Construct("The_base_2".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock("The_base_1".to_string())))),
+        );
+
+        verify_all_constructs_position(&mut universe, Docked("The_base_2".to_string()), Sector(SectorPosition::new(1, 1, 1)), Docked("The_base_1".to_string()));
+    }
+
+    fn verify_all_constructs_position(universe: &mut MyLittleUniverse, transport_position: ConstructPositionStatus, base_1_position: ConstructPositionStatus, base_2_position: ConstructPositionStatus) {
+        if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })) {
+            assert_eq!(&transport_position, construct.position.position());
+        } else {
+            assert!(false);
+        }
+
+        if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })) {
+            assert_eq!(&base_1_position, construct.position.position());
+        } else {
+            assert!(false);
+        }
+
+        if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct("The_base_2".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })) {
+            assert_eq!(&base_2_position, construct.position.position());
+        } else {
+            assert!(false);
+        }
     }
 }

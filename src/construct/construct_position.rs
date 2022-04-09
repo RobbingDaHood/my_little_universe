@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::construct::construct::Construct;
-use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
 use crate::construct::construct_position::ConstructPositionEventReturnType::{Denied, RequestProcessed};
+use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
 use crate::my_little_universe::MyLittleUniverse;
 use crate::sector::SectorPosition;
 
@@ -13,10 +13,22 @@ pub enum ConstructPositionStatus {
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum ConstructPositionEventType {
+    Internal(InternalConstructPositionEventType),
+    External(ExternalConstructPositionEventType),
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalConstructPositionEventType {
     Dock(String),
-    Undock(SectorPosition),
+    Undock,
     EnterSector(SectorPosition),
+}
+
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+pub enum InternalConstructPositionEventType {
+    Undock(SectorPosition),
+    Undocked(String),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -40,21 +52,36 @@ impl ConstructPositionState {
         &self.position
     }
 
-    pub fn handle_event(&mut self, event: &ExternalConstructPositionEventType) -> ConstructPositionEventReturnType {
+    pub fn handle_event(&mut self, event: &ConstructPositionEventType) -> ConstructPositionEventReturnType {
         match event {
-            ExternalConstructPositionEventType::Dock(construct_name) => {
+            ConstructPositionEventType::External(ExternalConstructPositionEventType::Dock(construct_name)) => {
                 if self.source_construct_name.eq(construct_name) {
                     return Denied("Construct cannot dock with itself.".to_string());
                 }
                 self.position = Docked(construct_name.clone());
                 RequestProcessed
             }
-            ExternalConstructPositionEventType::Undock(sector_position) => {
+            ConstructPositionEventType::External(ExternalConstructPositionEventType::Undock) => {
+                Denied("External Undock should never hit construct, use internal dock instead that contains all relevant information".to_string())
+            }
+            ConstructPositionEventType::External(ExternalConstructPositionEventType::EnterSector(sector_position)) => {
                 self.position = Sector(sector_position.clone());
                 RequestProcessed
             }
-            ExternalConstructPositionEventType::EnterSector(sector_position) => {
+            ConstructPositionEventType::Internal(InternalConstructPositionEventType::Undock(sector_position)) => {
                 self.position = Sector(sector_position.clone());
+                RequestProcessed
+            }
+            ConstructPositionEventType::Internal(InternalConstructPositionEventType::Undocked(construct_name)) => {
+                self.docker_modules.iter_mut()
+                    .find(|m| {
+                        match m.docked_construct() {
+                            Some(docked_construct_name) => docked_construct_name.eq(construct_name),
+                            None => false
+                        }
+                    })
+                    .expect("Trying to undock construct that is not docked")
+                    .undock();
                 RequestProcessed
             }
         }
@@ -73,6 +100,14 @@ pub struct DockerModule {
 impl DockerModule {
     pub fn new() -> Self {
         DockerModule { docked_construct: None }
+    }
+
+    pub fn docked_construct(&self) -> &Option<String> {
+        &self.docked_construct
+    }
+
+    pub fn undock(&mut self) {
+        self.docked_construct = None;
     }
 }
 
@@ -107,9 +142,17 @@ impl MyLittleUniverse {
             return ConstructPositionEventReturnType::Denied(format!("No construct with the name {}", target_construct_name));
         };
 
-        if !self.constructs().contains_key(source_construct_name.as_str()) {
-            return ConstructPositionEventReturnType::Denied(format!("No construct with the name {}", target_construct_name));
+        match self.constructs().get(source_construct_name.as_str()) {
+            None => return ConstructPositionEventReturnType::Denied(format!("No construct with the name {}", source_construct_name)),
+            Some(source_construct) => {
+                match &source_construct.position.position {
+                    Docked(docked_at_name) => return ConstructPositionEventReturnType::Denied(format!("Construct {} is already docked at {} so cannot dock again. Use Undock first.", source_construct_name, docked_at_name)),
+                    Sector(_) => {}
+                }
+            }
         };
+
+        //TODO Ensure they are in the same group; need groupid on the construct position.
 
         return match self.constructs.get_mut(target_construct_name.as_str()).unwrap().handle_docking_request(source_construct_name.clone()) {
             ConstructPositionEventReturnType::RequestProcessed => self.constructs.get_mut(source_construct_name.as_str()).unwrap().handle_docked(target_construct_name),
@@ -124,9 +167,9 @@ mod tests_int {
     use std::collections::HashMap;
 
     use crate::construct::construct::Construct;
-    use crate::construct::construct_position::{ConstructPositionStatus, ConstructPositionEventReturnType, ConstructPositionState, ExternalConstructPositionEventType};
+    use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionEventType, ConstructPositionState, ConstructPositionStatus, ExternalConstructPositionEventType, InternalConstructPositionEventType};
+    use crate::construct::construct_position::ConstructPositionEventReturnType::{Denied, RequestProcessed};
     use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
-    use crate::construct::construct_position::ConstructPositionEventReturnType::RequestProcessed;
     use crate::my_little_universe::MyLittleUniverse;
     use crate::sector::SectorPosition;
     use crate::time::TimeStackState;
@@ -141,21 +184,28 @@ mod tests_int {
         assert_eq!(Sector(sector_position.clone()), *position2.position());
         assert_eq!(
             ConstructPositionEventReturnType::Denied("Construct cannot dock with itself.".to_string()),
-            position1.handle_event(&ExternalConstructPositionEventType::Dock(position1.source_construct_name.to_string()))
+            position1.handle_event(&ConstructPositionEventType::External(ExternalConstructPositionEventType::Dock(position1.source_construct_name.to_string())))
         );
         assert_eq!(Sector(sector_position.clone()), *position1.position());
         assert_eq!(Sector(sector_position.clone()), *position2.position());
 
         assert_eq!(
             ConstructPositionEventReturnType::RequestProcessed,
-            position1.handle_event(&ExternalConstructPositionEventType::Dock(position2.source_construct_name.to_string()))
+            position1.handle_event(&ConstructPositionEventType::External(ExternalConstructPositionEventType::Dock(position2.source_construct_name.to_string())))
         );
         assert_eq!(Docked(position2.source_construct_name.clone()), *position1.position());
         assert_eq!(Sector(sector_position.clone()), *position2.position());
 
         assert_eq!(
             ConstructPositionEventReturnType::RequestProcessed,
-            position1.handle_event(&ExternalConstructPositionEventType::Undock(sector_position.clone()))
+            position1.handle_event(&ConstructPositionEventType::Internal(InternalConstructPositionEventType::Undock(sector_position.clone())))
+        );
+        assert_eq!(Sector(sector_position.clone()), *position1.position());
+        assert_eq!(Sector(sector_position.clone()), *position2.position());
+
+        assert_eq!(
+            ConstructPositionEventReturnType::Denied("External Undock should never hit construct, use internal dock instead that contains all relevant information".to_string()),
+            position1.handle_event(&ConstructPositionEventType::External(ExternalConstructPositionEventType::Undock))
         );
         assert_eq!(Sector(sector_position.clone()), *position1.position());
         assert_eq!(Sector(sector_position.clone()), *position2.position());
@@ -202,8 +252,13 @@ mod tests_int {
         assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
 
         assert_eq!(
+            Denied("External Undock should never hit construct, use internal dock instead that contains all relevant information".to_string()),
+            universe.constructs.get_mut(the_base1_name).unwrap().position.handle_event(&ConstructPositionEventType::External(ExternalConstructPositionEventType::Undock))
+        );
+
+        assert_eq!(
             RequestProcessed,
-            universe.constructs.get_mut(the_base1_name).unwrap().position.handle_event(&ExternalConstructPositionEventType::Undock(sector_position.clone()))
+            universe.constructs.get_mut(the_base1_name).unwrap().position.handle_event(&ConstructPositionEventType::Internal(InternalConstructPositionEventType::Undock(sector_position.clone())))
         );
 
         assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base1_name).unwrap().position().position());
