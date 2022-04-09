@@ -11,7 +11,7 @@ use crate::construct_module::ConstructModuleType::Production as ProductionModule
 use crate::MainConfig;
 use crate::my_little_universe::MyLittleUniverse;
 use crate::products::Product;
-use crate::sector::SectorPosition;
+use crate::sector::{Sector, SectorPosition};
 use crate::time::TimeStackState;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -48,7 +48,6 @@ fn read_universe_generator_config_file(config_name: &String) -> UniverseGenerato
 }
 
 pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
-
     let sector_position_1 = SectorPosition::new(1, 1, 1);
     let mut construct_1 = Construct::new("The_base_1".to_string(), 500, sector_position_1.clone());
     assert_eq!(Ok(()), construct_1.install(ProductionModuleType(ProductionModule::new(
@@ -60,7 +59,7 @@ pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
     ))));
 
     let sector_position_2 = SectorPosition::new(2, 2, 2);
-    let mut construct_2 = Construct::new("The_base_2".to_string(), 500, sector_position_2);
+    let mut construct_2 = Construct::new("The_base_2".to_string(), 500, sector_position_2.clone());
     assert_eq!(Ok(()), construct_2.install(ProductionModuleType(ProductionModule::new(
         "OreToPower".to_string(),
         vec![Amount::new(Product::Ores, 1)],
@@ -69,14 +68,24 @@ pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
         0,
     ))));
 
-    let transport_construct = Construct::new("transport".to_string(), 500, sector_position_1);
+    let transport_construct = Construct::new("transport".to_string(), 500, sector_position_1.clone());
 
     let mut constructs: HashMap<String, Construct> = HashMap::new();
     constructs.insert(construct_1.name().to_string(), construct_1);
     constructs.insert(construct_2.name().to_string(), construct_2);
     constructs.insert(transport_construct.name().to_string(), transport_construct);
 
-    MyLittleUniverse::new(universe_name, TimeStackState::new(), constructs, HashMap::new())
+    let mut sector_1 = Sector::new(Vec::new(), sector_position_1.clone());
+    sector_1.enter_sector("The_base_1".to_string(), None);
+    sector_1.enter_sector("transport".to_string(), None);
+    let mut sector_2 = Sector::new(Vec::new(), sector_position_2.clone());
+    sector_2.enter_sector("The_base_2".to_string(), None);
+
+    let mut sectors = HashMap::new();
+    sectors.insert(sector_position_1.clone(), sector_1);
+    sectors.insert(sector_position_2.clone(), sector_2);
+
+    MyLittleUniverse::new(universe_name, TimeStackState::new(), constructs, sectors)
 }
 
 

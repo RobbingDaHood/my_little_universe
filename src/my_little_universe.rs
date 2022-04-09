@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::{ExternalCommandReturnValues, ExternalCommands};
-use crate::construct::construct::{Construct, ConstructEventType, InternalConstructEventType};
-use crate::construct::construct_position::ConstructPosition;
+use crate::construct::construct::{Construct, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
+use crate::construct::construct_position::{ConstructPositionStatus, ExternalConstructPositionEventType};
 use crate::save_load::ExternalSaveLoad;
 use crate::sector::{InternalSectorEventType, Sector, SectorEvenReturnType, SectorEventType, SectorPosition};
 use crate::sector::SectorEvenReturnType::{Denied, Entered};
@@ -111,22 +111,26 @@ impl MyLittleUniverse {
 
     fn move_to_sector(&mut self, of_move_to_sector: OfMoveToSector) -> MyLittleUniverseReturnValues {
         if !self.sectors.contains_key(&of_move_to_sector.sector_position) {
-            return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Target sector does not exist {}", of_move_to_sector.construct_name));
+            return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Target sector does not exist {:?}", of_move_to_sector.sector_position));
         }
 
         match self.constructs.get_mut(&of_move_to_sector.construct_name) {
             Some(construct) => {
                 let position = construct.position().position();
                 match position {
-                    ConstructPosition::Docked(construct_name) => {
+                    ConstructPositionStatus::Docked(construct_name) => {
                         return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Is docked at {}", construct_name));
                     }
-                    ConstructPosition::Sector(source_sector_position) => {
+                    ConstructPositionStatus::Sector(source_sector_position) => {
+                        if source_sector_position.eq(&of_move_to_sector.sector_position) {
+                            return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Construct {:?} is already in target sector {:?}", of_move_to_sector.construct_name, of_move_to_sector.sector_position));
+                        }
+
                         match self.sectors.get_mut(source_sector_position) {
                             Some(source_sector) => {
                                 match source_sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Leave(of_move_to_sector.construct_name.clone()))) {
                                     SectorEvenReturnType::Approved => {
-                                        //construct.push_event()
+                                        construct.push_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::EnterSector(of_move_to_sector.sector_position.clone()))));
                                     }
                                     Denied(message) => {
                                         return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Could not leave sector {:?}, because {}", of_move_to_sector.sector_position, message));
@@ -177,16 +181,17 @@ impl MyLittleUniverse {
 mod tests_int {
     use std::collections::HashMap;
 
-    use crate::{ExternalCommandReturnValues, ExternalCommands, MainConfig};
+    use crate::{ExternalCommandReturnValues, ExternalCommands};
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ExternalConstructEventType};
+    use crate::construct::construct_position::ConstructPositionStatus::Sector;
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
-    use crate::my_little_universe::{MyLittleUniverse, MyLittleUniverseReturnValues};
+    use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverse, MyLittleUniverseReturnValues, OfMoveToSector};
     use crate::products::Product;
     use crate::sector::SectorPosition;
     use crate::time::{ExternalTimeEventType, TimeEventReturnType, TimeStackState};
-    use crate::universe_generator::{generate_simple_universe, generate_universe};
+    use crate::universe_generator::generate_simple_universe;
 
     #[test]
     fn it_works() {
@@ -247,18 +252,40 @@ mod tests_int {
     fn move_sectors() {
         let mut universe = generate_simple_universe("the_universe".to_string());
 
+        if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })) {
+            assert_eq!(&Sector(SectorPosition::new(1, 1, 1)), construct.position.position());
+        } else {
+            assert!(false);
+        }
+
         assert_eq!(
-            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::RequestLoadProcessed(0)),
-            universe.handle_event(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 200))))
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Construct \"transport\" is already in target sector SectorPosition { x: 1, y: 1, z: 1 }".to_string())),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("transport".to_string(), SectorPosition::new(1, 1, 1), None)))),
         );
 
         assert_eq!(
-            ExternalCommandReturnValues::Time(TimeEventReturnType::Received),
-            universe.handle_event(ExternalCommands::Time(ExternalTimeEventType::StartUntilTurn(100)))
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Target sector does not exist SectorPosition { x: 3, y: 3, z: 3 }".to_string())),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("transport".to_string(), SectorPosition::new(3, 3, 3), None)))),
         );
-        universe.request_execute_turn();
-        universe.request_execute_turn();
 
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::MovedToSector(1)),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("transport".to_string(), SectorPosition::new(2, 2, 2), None)))),
+        );
 
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::MovedToSector(1)),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("transport".to_string(), SectorPosition::new(1, 1, 1), None)))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Construct \"transport\" is already in target sector SectorPosition { x: 1, y: 1, z: 1 }".to_string())),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("transport".to_string(), SectorPosition::new(1, 1, 1), None)))),
+        );
+
+        assert_eq!(
+            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Target sector does not exist SectorPosition { x: 3, y: 3, z: 3 }".to_string())),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(OfMoveToSector::new("transport".to_string(), SectorPosition::new(3, 3, 3), None)))),
+        );
     }
 }

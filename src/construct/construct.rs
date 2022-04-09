@@ -232,7 +232,7 @@ mod tests_int {
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
     use crate::construct::construct_position::{ConstructPositionEventReturnType, ExternalConstructPositionEventType};
-    use crate::construct::construct_position::ConstructPosition::{Docked, Sector};
+    use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
     use crate::products::Product;

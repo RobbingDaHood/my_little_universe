@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
 
 use crate::construct::construct::Construct;
-use crate::construct::construct_position::ConstructPosition::{Docked, Sector};
+use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
 use crate::construct::construct_position::ConstructPositionEventReturnType::{Denied, RequestProcessed};
 use crate::my_little_universe::MyLittleUniverse;
 use crate::sector::SectorPosition;
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
-pub enum ConstructPosition {
+pub enum ConstructPositionStatus {
     Docked(String),
     Sector(SectorPosition),
 }
@@ -16,6 +16,7 @@ pub enum ConstructPosition {
 pub enum ExternalConstructPositionEventType {
     Dock(String),
     Undock(SectorPosition),
+    EnterSector(SectorPosition),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -26,7 +27,7 @@ pub enum ConstructPositionEventReturnType {
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct ConstructPositionState {
-    position: ConstructPosition,
+    position: ConstructPositionStatus,
     source_construct_name: String,
     docker_modules: Vec<DockerModule>,
 }
@@ -35,7 +36,7 @@ impl ConstructPositionState {
     pub fn new(source_construct_name: String, sector_position: SectorPosition) -> Self {
         ConstructPositionState { position: Sector(sector_position), source_construct_name, docker_modules: Vec::new() }
     }
-    pub fn position(&self) -> &ConstructPosition {
+    pub fn position(&self) -> &ConstructPositionStatus {
         &self.position
     }
 
@@ -49,6 +50,10 @@ impl ConstructPositionState {
                 RequestProcessed
             }
             ExternalConstructPositionEventType::Undock(sector_position) => {
+                self.position = Sector(sector_position.clone());
+                RequestProcessed
+            }
+            ExternalConstructPositionEventType::EnterSector(sector_position) => {
                 self.position = Sector(sector_position.clone());
                 RequestProcessed
             }
@@ -73,7 +78,7 @@ impl DockerModule {
 
 impl Construct {
     pub fn handle_docking_request(&mut self, source_construct_name: String) -> ConstructPositionEventReturnType {
-        if let ConstructPosition::Docked(_) = &self.position.position {
+        if let ConstructPositionStatus::Docked(_) = &self.position.position {
             return ConstructPositionEventReturnType::Denied(format!("Cannot dock at target that itself is already docked {}", self.name()));
         }
 
@@ -87,7 +92,7 @@ impl Construct {
     }
 
     pub fn handle_docked(&mut self, target_construct_name: String) -> ConstructPositionEventReturnType {
-        self.position.position = ConstructPosition::Docked(target_construct_name);
+        self.position.position = ConstructPositionStatus::Docked(target_construct_name);
         ConstructPositionEventReturnType::RequestProcessed
     }
 }
@@ -119,8 +124,8 @@ mod tests_int {
     use std::collections::HashMap;
 
     use crate::construct::construct::Construct;
-    use crate::construct::construct_position::{ConstructPosition, ConstructPositionEventReturnType, ConstructPositionState, ExternalConstructPositionEventType};
-    use crate::construct::construct_position::ConstructPosition::{Docked, Sector};
+    use crate::construct::construct_position::{ConstructPositionStatus, ConstructPositionEventReturnType, ConstructPositionState, ExternalConstructPositionEventType};
+    use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
     use crate::construct::construct_position::ConstructPositionEventReturnType::RequestProcessed;
     use crate::my_little_universe::MyLittleUniverse;
     use crate::sector::SectorPosition;
@@ -185,7 +190,7 @@ mod tests_int {
             universe.handle_docking_request(the_base1_name.to_string(), the_base2_name.to_string())
         );
 
-        assert_eq!(ConstructPosition::Docked(the_base2_name.to_string()), *universe.constructs.get(the_base1_name).unwrap().position().position());
+        assert_eq!(ConstructPositionStatus::Docked(the_base2_name.to_string()), *universe.constructs.get(the_base1_name).unwrap().position().position());
         assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
 
         assert_eq!(
@@ -193,7 +198,7 @@ mod tests_int {
             universe.handle_docking_request(the_base2_name.to_string(), the_base1_name.to_string())
         );
 
-        assert_eq!(ConstructPosition::Docked(the_base2_name.to_string()), *universe.constructs.get(the_base1_name).unwrap().position().position());
+        assert_eq!(ConstructPositionStatus::Docked(the_base2_name.to_string()), *universe.constructs.get(the_base1_name).unwrap().position().position());
         assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
 
         assert_eq!(
