@@ -41,7 +41,7 @@ pub enum ConstructPositionEventType {
 pub enum ExternalConstructPositionEventType {
     Dock(String),
     Undock,
-    EnterSector(ConstructPositionSector),
+    EnterSector(ConstructPositionSector), //TODO there should just be one move external method and the rest should be internal
     EnterGroup(usize),
 }
 

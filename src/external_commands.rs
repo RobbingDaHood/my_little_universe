@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::construct::amount::Amount;
 use crate::construct::construct::{ConstructEvenReturnType, ExternalConstructEventType};
-use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverseReturnValues, OfMoveToSector, OfTransferCargo};
+use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverseReturnValues, OfMove, OfTransferCargo};
 use crate::products::Product;
 use crate::save_load::{ExternalSaveLoad, ExternalSaveLoadReturnValue};
 use crate::sector::{ExternalSectorEventType, SectorEvenReturnType, SectorPosition};
@@ -41,8 +41,7 @@ impl TryFrom<&String> for ExternalCommands {
             "Construct" => { Self::parse_construct(command_parts) }
             "Sector" => { Self::parse_sector(command_parts) }
             "Save" => { Self::parse_save_load(command_parts) }
-            "Universe" => { Self::parse_universe(command_parts) }
-            _ => { Err(format!("Unknown command, got: {}", value)) }
+            _ => { Self::parse_universe(command_parts) }
         };
     }
 }
@@ -158,14 +157,16 @@ impl ExternalCommands {
     }
 
     fn parse_universe(command_parts: Vec<&str>) -> Result<ExternalCommands, String> {
-        if command_parts.len() < 2 {
-            return Err(format!("Universe command needs at least the command name. Got {:?}", command_parts));
+        if command_parts.len() < 1 {
+            return Err(format!("Need at least the command name. Got Nothing: {:?}", command_parts));
         }
 
-        match command_parts[1] {
-            "MoveToSector" => {
-                if command_parts.len() > 3 {
-                    let sector_position = command_parts[3];
+        match command_parts[0] {
+            "Move" => {
+                if command_parts.len() > 2 {
+                    // One is construct name
+
+                    let sector_position = command_parts[2];
                     let sector_position = sector_position.split("-").collect::<Vec<&str>>();
                     let sector_position = SectorPosition::new(
                         sector_position[0].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_position[0]).as_str()),
@@ -173,20 +174,20 @@ impl ExternalCommands {
                         sector_position[2].parse::<u8>().expect(format!("Had trouble parsing {} to u8", sector_position[2]).as_str()),
                     );
 
-                    if command_parts.len() > 4 {
-                        if let Ok(group_address) = command_parts[4].parse::<usize>() {
-                            return Ok(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(
-                                OfMoveToSector::new(
-                                    command_parts[2].to_string(),
+                    if command_parts.len() > 3 {
+                        if let Ok(group_address) = command_parts[3].parse::<usize>() {
+                            return Ok(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(
+                                OfMove::new(
+                                    command_parts[1].to_string(),
                                     sector_position,
                                     Some(group_address),
                                 )
                             )));
                         }
                     } else {
-                        return Ok(ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(
-                            OfMoveToSector::new(
-                                command_parts[2].to_string(),
+                        return Ok(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(
+                            OfMove::new(
+                                command_parts[1].to_string(),
                                 sector_position,
                                 None,
                             )
@@ -196,8 +197,8 @@ impl ExternalCommands {
                 return Err(format!("MoveToSector did not parse the command. Got {:?}", command_parts));
             }
             "TransferCargo" => {
-                if command_parts.len() > 5 {
-                    let product = match command_parts[4] {
+                if command_parts.len() > 4 {
+                    let product = match command_parts[3] {
                         "Ores" => { Some(Product::Ores) }
                         "Metals" => { Some(Product::Metals) }
                         "PowerCells" => { Some(Product::PowerCells) }
@@ -205,8 +206,8 @@ impl ExternalCommands {
                     };
 
                     if let Some(product_value) = product {
-                        if let Ok(amount) = command_parts[5].parse::<u32>() {
-                            return Ok(ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(OfTransferCargo::new(command_parts[2].to_string(), command_parts[3].to_string(), Amount::new(product_value, amount)))));
+                        if let Ok(amount) = command_parts[4].parse::<u32>() {
+                            return Ok(ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(OfTransferCargo::new(command_parts[1].to_string(), command_parts[2].to_string(), Amount::new(product_value, amount)))));
                         }
                     }
                 }
@@ -221,7 +222,7 @@ impl ExternalCommands {
 mod tests_int {
     use crate::construct::construct::ExternalConstructEventType;
     use crate::external_commands::{Amount, ExternalCommands};
-    use crate::my_little_universe::{ExternalUniverseEventType, OfMoveToSector, OfTransferCargo};
+    use crate::my_little_universe::{ExternalUniverseEventType, OfMove, OfTransferCargo};
     use crate::products::Product;
     use crate::save_load::ExternalSaveLoad;
     use crate::sector::{ExternalSectorEventType, SectorPosition};
@@ -247,22 +248,22 @@ mod tests_int {
                    ExternalCommands::try_from(&"Sector 1-1-1 GetSectorState".to_string()).unwrap());
 
         assert_eq!(
-            ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(
-                OfMoveToSector::new("the_construct".to_string(), SectorPosition::new(1, 1, 1), None)
+            ExternalCommands::Universe(ExternalUniverseEventType::MOVE(
+                OfMove::new("the_construct".to_string(), SectorPosition::new(1, 1, 1), None)
             )),
-            ExternalCommands::try_from(&"Universe MoveToSector the_construct 1-1-1".to_string()).unwrap()
+            ExternalCommands::try_from(&"Move the_construct 1-1-1".to_string()).unwrap()
         );
         assert_eq!(
-            ExternalCommands::Universe(ExternalUniverseEventType::MoveToSector(
-                OfMoveToSector::new("the_construct".to_string(), SectorPosition::new(1, 1, 1), Some(22))
+            ExternalCommands::Universe(ExternalUniverseEventType::MOVE(
+                OfMove::new("the_construct".to_string(), SectorPosition::new(1, 1, 1), Some(22))
             )),
-            ExternalCommands::try_from(&"Universe MoveToSector the_construct 1-1-1 22".to_string()).unwrap()
+            ExternalCommands::try_from(&"Move the_construct 1-1-1 22".to_string()).unwrap()
         );
         assert_eq!(
             ExternalCommands::Universe(ExternalUniverseEventType::TransferCargo(
                 OfTransferCargo::new("the_construct_1".to_string(), "the_construct_2".to_string(), Amount::new(Product::Ores, 25))
             )),
-            ExternalCommands::try_from(&"Universe TransferCargo the_construct_1 the_construct_2 Ores 25".to_string()).unwrap()
+            ExternalCommands::try_from(&"TransferCargo the_construct_1 the_construct_2 Ores 25".to_string()).unwrap()
         );
 
         assert_eq!(ExternalCommands::Save(ExternalSaveLoad::TheUniverse),

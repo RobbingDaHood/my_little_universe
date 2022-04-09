@@ -71,7 +71,7 @@ mod tests_int {
     use std::thread;
     use std::time::Duration;
 
-    use crate::construct::construct::{ConstructEvenReturnType, ExternalConstructEventType};
+    use crate::construct::construct::ExternalConstructEventType;
     use crate::construct::construct::ConstructEvenReturnType::ConstructState;
     use crate::construct_module::ConstructModuleType;
     use crate::construct_module::ConstructModuleType::Production;
@@ -86,9 +86,9 @@ mod tests_int {
     #[test]
     fn it_works() {
         let main_config = MainConfig {
-            address : "random".to_string(),
-            universe_name : "testing".to_string(),
-            config_name : "default".to_string()
+            address: "random".to_string(),
+            universe_name: "testing".to_string(),
+            config_name: "default".to_string(),
         };
 
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
@@ -115,9 +115,9 @@ mod tests_int {
     #[test]
     fn next_turn() {
         let main_config = MainConfig {
-            address : "random".to_string(),
-            universe_name : "testing".to_string(),
-            config_name : "default".to_string()
+            address: "random".to_string(),
+            universe_name: "testing".to_string(),
+            config_name: "default".to_string(),
         };
 
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
@@ -149,9 +149,9 @@ mod tests_int {
     #[test]
     fn next_turn_without_limit() {
         let main_config = MainConfig {
-            address : "random".to_string(),
-            universe_name : "testing".to_string(),
-            config_name : "default".to_string()
+            address: "random".to_string(),
+            universe_name: "testing".to_string(),
+            config_name: "default".to_string(),
         };
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();
@@ -189,9 +189,9 @@ mod tests_int {
     #[test]
     fn next_turn_with_constructs() {
         let main_config = MainConfig {
-            address : "random".to_string(),
-            universe_name : "testing".to_string(),
-            config_name : "default".to_string()
+            address: "random".to_string(),
+            universe_name: "testing".to_string(),
+            config_name: "default".to_string(),
         };
         let (main_to_universe_sender, main_to_universe_receiver): (Sender<ExternalCommands>, Receiver<ExternalCommands>) = mpsc::channel();
         let (universe_to_main_sender, universe_to_main_receiver): (Sender<ExternalCommandReturnValues>, Receiver<ExternalCommandReturnValues>) = mpsc::channel();

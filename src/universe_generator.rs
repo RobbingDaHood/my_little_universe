@@ -5,7 +5,7 @@ use std::ops::Add;
 use serde::{Deserialize, Serialize};
 
 pub use crate::construct::amount::Amount;
-use crate::construct::construct::{Construct, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
+use crate::construct::construct::{Construct, ConstructEventType, InternalConstructEventType};
 use crate::construct::construct_position::ConstructPositionSector;
 use crate::construct::production_module::ProductionModule;
 use crate::construct_module::ConstructModuleType::Production as ProductionModuleType;
