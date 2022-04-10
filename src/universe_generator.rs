@@ -42,10 +42,8 @@ fn read_universe_generator_config_file(config_name: &String) -> UniverseGenerato
     let universe_generator_setup_config = fs::read_to_string(universe_generator_config_path)
         .expect("Something went wrong reading the file");
 
-    let niverse_generator_config: UniverseGeneratorConfig = serde_json::from_str(universe_generator_setup_config.as_str())
-        .expect("Something went wrong parsing the file from");
-
-    niverse_generator_config
+    serde_json::from_str(universe_generator_setup_config.as_str())
+        .expect("Something went wrong parsing the file from")
 }
 
 pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
@@ -94,23 +92,46 @@ pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
 
 pub fn generate_performance_test_universe(universe_name: String) -> MyLittleUniverse {
     let mut constructs: HashMap<String, Construct> = HashMap::new();
+    let mut sectors = HashMap::new();
 
-    let sector_position = ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0);
-    for i in 1..999999 {
-        let mut construct = Construct::new(format!("{}{}", i, "The_base".to_string()), 500, sector_position.clone());
-        let ore_production = ProductionModule::new(
-            "PowerToOre".to_string(),
-            vec![Amount::new(Product::PowerCells, 1)],
-            vec![Amount::new(Product::Ores, 2)],
-            1,
-            0,
-        );
-        assert_eq!(Ok(()), construct.install(ProductionModuleType(ore_production.clone())));
+    let mut count_constructs = 0;
+    for x in 1..20 {
+        for y in 1..20 {
+            for z in 1..20 {
+                let sector_position = SectorPosition::new(x, y, z);
+                let mut sector = Sector::new(Vec::new(), sector_position.clone());
+                for group_id in 1..50 {
+                    for production in [(Product::PowerCells, Product::Ores), (Product::Ores, Product::Metals), (Product::Metals, Product::PowerCells)] {
+                        let construct_name = format!("{}-{}-{}_{}:{:?}->{:?}", x, y, z, group_id, production.0, production.1);
+                        let new_group_id = sector.enter_sector(construct_name.clone(), Some(group_id));
+                        let sector_position = ConstructPositionSector::new(sector_position.clone(), new_group_id);
 
-        construct.push_event(&ConstructEventType::Internal(InternalConstructEventType::RequestLoad(Amount::new(Product::PowerCells, 200))));
+                        let mut construct = Construct::new(
+                            construct_name,
+                            500,
+                            sector_position.clone());
+                        let production_module = ProductionModule::new(
+                            "production".to_string(),
+                            vec![Amount::new(production.0.clone(), 1)],
+                            vec![Amount::new(production.1, 2)],
+                            1,
+                            0,
+                        );
+                        assert_eq!(Ok(()), construct.install(ProductionModuleType(production_module.clone())));
+                        construct.position.install();
 
-        constructs.insert(construct.name().to_string(), construct);
+                        construct.push_event(&ConstructEventType::Internal(InternalConstructEventType::RequestLoad(Amount::new(production.0, 200))));
+
+                        constructs.insert(construct.name().to_string(), construct);
+
+                        count_constructs += 1;
+                    }
+                }
+                sectors.insert(sector_position.clone(), sector);
+            }
+        }
     }
 
-    MyLittleUniverse::new(universe_name, TimeStackState::new(), constructs, HashMap::new())
+    println!("Performance universe, generated {} constructs.", count_constructs);
+    MyLittleUniverse::new(universe_name, TimeStackState::new(), constructs, sectors)
 }

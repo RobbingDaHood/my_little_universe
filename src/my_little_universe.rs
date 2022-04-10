@@ -21,7 +21,7 @@ pub struct MyLittleUniverse {
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalUniverseEventType {
-    MOVE(OfMove),
+    Move(OfMove),
     TransferCargo(OfTransferCargo),
 }
 
@@ -165,7 +165,7 @@ impl MyLittleUniverse {
             }
             ExternalCommands::Universe(event) => {
                 match event {
-                    ExternalUniverseEventType::MOVE(of_move_to_sector) => ExternalCommandReturnValues::Universe(self.move_to_sector(of_move_to_sector)),
+                    ExternalUniverseEventType::Move(of_move_to_sector) => ExternalCommandReturnValues::Universe(self.move_to_sector(of_move_to_sector)),
                     ExternalUniverseEventType::TransferCargo(transfer_cargo) => {
                         if transfer_cargo.source_construct_name.eq(&transfer_cargo.target_construct_name) {
                             return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied(format!("Cannot transfer because source {} and target {} construct is the same", transfer_cargo.source_construct_name, transfer_cargo.target_construct_name)));
@@ -390,32 +390,32 @@ mod tests_int {
 
         assert_eq!(
             ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Construct \"transport\" is already in target position OfMove { construct_name: \"transport\", sector_position: SectorPosition { x: 1, y: 1, z: 1 }, group_address: Some(0) }".to_string())),
-            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(OfMove::new("transport".to_string(), SectorPosition::new(1, 1, 1), Some(0))))),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::Move(OfMove::new("transport".to_string(), SectorPosition::new(1, 1, 1), Some(0))))),
         );
 
         assert_eq!(
             ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Target sector does not exist SectorPosition { x: 3, y: 3, z: 3 }".to_string())),
-            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(OfMove::new("transport".to_string(), SectorPosition::new(3, 3, 3), None)))),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::Move(OfMove::new("transport".to_string(), SectorPosition::new(3, 3, 3), None)))),
         );
 
         assert_eq!(
             ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::MovedToSector(1)),
-            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(OfMove::new("transport".to_string(), SectorPosition::new(2, 2, 2), None)))),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::Move(OfMove::new("transport".to_string(), SectorPosition::new(2, 2, 2), None)))),
         );
 
         assert_eq!(
             ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::MovedToSector(1)),
-            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(OfMove::new("transport".to_string(), SectorPosition::new(1, 1, 1), None)))),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::Move(OfMove::new("transport".to_string(), SectorPosition::new(1, 1, 1), None)))),
         );
 
         assert_eq!(
             ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Construct \"transport\" is already in target position OfMove { construct_name: \"transport\", sector_position: SectorPosition { x: 1, y: 1, z: 1 }, group_address: Some(1) }".to_string())),
-            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(OfMove::new("transport".to_string(), SectorPosition::new(1, 1, 1), Some(1))))),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::Move(OfMove::new("transport".to_string(), SectorPosition::new(1, 1, 1), Some(1))))),
         );
 
         assert_eq!(
             ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector("Target sector does not exist SectorPosition { x: 3, y: 3, z: 3 }".to_string())),
-            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(OfMove::new("transport".to_string(), SectorPosition::new(3, 3, 3), None)))),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::Move(OfMove::new("transport".to_string(), SectorPosition::new(3, 3, 3), None)))),
         );
     }
 
@@ -453,7 +453,7 @@ mod tests_int {
 
         assert_eq!(
             ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::MovedToSector(1)),
-            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(OfMove::new("transport".to_string(), SectorPosition::new(2, 2, 2), None)))),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::Move(OfMove::new("transport".to_string(), SectorPosition::new(2, 2, 2), None)))),
         );
 
         verify_all_constructs_position(&mut universe,
@@ -541,7 +541,7 @@ mod tests_int {
 
         assert_eq!(
             ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::MovedToSector(0)),
-            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(OfMove::new("The_base_2".to_string(), SectorPosition::new(1, 1, 1), Some(0))))),
+            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::Move(OfMove::new("The_base_2".to_string(), SectorPosition::new(1, 1, 1), Some(0))))),
         );
 
         verify_all_constructs_position(&mut universe,

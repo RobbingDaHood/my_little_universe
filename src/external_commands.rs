@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::construct::amount::Amount;
 use crate::construct::construct::{ConstructEvenReturnType, ExternalConstructEventType};
+use crate::construct::construct_position::ExternalConstructPositionEventType;
 use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverseReturnValues, OfMove, OfTransferCargo};
 use crate::products::Product;
 use crate::save_load::{ExternalSaveLoad, ExternalSaveLoadReturnValue};
@@ -176,7 +177,7 @@ impl ExternalCommands {
 
                     if command_parts.len() > 3 {
                         if let Ok(group_address) = command_parts[3].parse::<usize>() {
-                            return Ok(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(
+                            return Ok(ExternalCommands::Universe(ExternalUniverseEventType::Move(
                                 OfMove::new(
                                     command_parts[1].to_string(),
                                     sector_position,
@@ -185,7 +186,7 @@ impl ExternalCommands {
                             )));
                         }
                     } else {
-                        return Ok(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(
+                        return Ok(ExternalCommands::Universe(ExternalUniverseEventType::Move(
                             OfMove::new(
                                 command_parts[1].to_string(),
                                 sector_position,
@@ -213,6 +214,18 @@ impl ExternalCommands {
                 }
                 return Err(format!("TransferCargo need source_construct_name target_construct_name product amount. Got {:?}", command_parts));
             }
+            "Dock" => {
+                if command_parts.len() > 2 {
+                    return Ok(ExternalCommands::Construct(command_parts[1].to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock(command_parts[2].to_string()))));
+                }
+                return Err(format!("Dock need source_construct_name target_construct_name. Got {:?}", command_parts));
+            }
+            "Undock" => {
+                if command_parts.len() > 1 {
+                    return Ok(ExternalCommands::Construct(command_parts[1].to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Undock)));
+                }
+                return Err(format!("Undock need source_construct_name. Got {:?}", command_parts));
+            }
             _ => Err(format!("Unknown Universe command. Got {:?}", command_parts))
         }
     }
@@ -221,6 +234,7 @@ impl ExternalCommands {
 #[cfg(test)]
 mod tests_int {
     use crate::construct::construct::ExternalConstructEventType;
+    use crate::construct::construct_position::ExternalConstructPositionEventType;
     use crate::external_commands::{Amount, ExternalCommands};
     use crate::my_little_universe::{ExternalUniverseEventType, OfMove, OfTransferCargo};
     use crate::products::Product;
@@ -248,13 +262,13 @@ mod tests_int {
                    ExternalCommands::try_from(&"Sector 1-1-1 GetSectorState".to_string()).unwrap());
 
         assert_eq!(
-            ExternalCommands::Universe(ExternalUniverseEventType::MOVE(
+            ExternalCommands::Universe(ExternalUniverseEventType::Move(
                 OfMove::new("the_construct".to_string(), SectorPosition::new(1, 1, 1), None)
             )),
             ExternalCommands::try_from(&"Move the_construct 1-1-1".to_string()).unwrap()
         );
         assert_eq!(
-            ExternalCommands::Universe(ExternalUniverseEventType::MOVE(
+            ExternalCommands::Universe(ExternalUniverseEventType::Move(
                 OfMove::new("the_construct".to_string(), SectorPosition::new(1, 1, 1), Some(22))
             )),
             ExternalCommands::try_from(&"Move the_construct 1-1-1 22".to_string()).unwrap()
@@ -264,6 +278,22 @@ mod tests_int {
                 OfTransferCargo::new("the_construct_1".to_string(), "the_construct_2".to_string(), Amount::new(Product::Ores, 25))
             )),
             ExternalCommands::try_from(&"TransferCargo the_construct_1 the_construct_2 Ores 25".to_string()).unwrap()
+        );
+        assert_eq!(
+            ExternalCommands::Construct(
+                "the_construct_1".to_string(),
+                ExternalConstructEventType::ConstructPosition(
+                    ExternalConstructPositionEventType::Dock("the_construct_2".to_string())
+                ),
+            ),
+            ExternalCommands::try_from(&"Dock the_construct_1 the_construct_2".to_string()).unwrap()
+        );
+        assert_eq!(
+            ExternalCommands::Construct(
+                "the_construct_1".to_string(),
+                ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Undock),
+            ),
+            ExternalCommands::try_from(&"Undock the_construct_1".to_string()).unwrap()
         );
 
         assert_eq!(ExternalCommands::Save(ExternalSaveLoad::TheUniverse),
