@@ -124,6 +124,16 @@ impl ExternalCommands {
             "GetSectorState" => {
                 return Ok(ExternalCommands::Sector(sector_position, ExternalSectorEventType::GetSectorState));
             }
+            "MoveToGroup" => {
+                if command_parts.len() > 4 {
+                    if let Ok(group_address) = command_parts[4].parse::<usize>() {
+                        return Ok(ExternalCommands::Sector(sector_position, ExternalSectorEventType::MoveToGroup(command_parts[3].to_string(), Some(group_address))));
+                    }
+                } else if command_parts.len() > 3 {
+                    return Ok(ExternalCommands::Sector(sector_position, ExternalSectorEventType::MoveToGroup(command_parts[3].to_string(), None)));
+                }
+                return Err(format!("MoveToGroup could not parse command. Got {:?}", command_parts));
+            }
             _ => Err(format!("Unknown Sector command. Got {:?}", command_parts))
         }
     }

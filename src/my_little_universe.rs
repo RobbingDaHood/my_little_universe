@@ -7,7 +7,7 @@ use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructE
 use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionEventType, ConstructPositionSector, ConstructPositionStatus, ExternalConstructPositionEventType, InternalConstructPositionEventType};
 use crate::external_commands::Amount;
 use crate::save_load::ExternalSaveLoad;
-use crate::sector::{InternalSectorEventType, Sector, SectorEvenReturnType, SectorEventType, SectorPosition};
+use crate::sector::{ExternalSectorEventType, InternalSectorEventType, Sector, SectorEvenReturnType, SectorEventType, SectorPosition};
 use crate::sector::SectorEvenReturnType::{Denied, Entered};
 use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 
@@ -138,8 +138,27 @@ impl MyLittleUniverse {
             ExternalCommands::Sector(sector_position, sector_event) => {
                 return match self.sectors.get_mut(&sector_position) {
                     Some(sector) => {
-                        let return_type = sector.push_event(&SectorEventType::External(sector_event));
-                        ExternalCommandReturnValues::Sector(return_type)
+                        match sector_event {
+                            ExternalSectorEventType::MoveToGroup(ref construct_name, _) => {
+                                let return_type = sector.push_event(&SectorEventType::External(sector_event.clone()));
+
+                                if let SectorEvenReturnType::Entered(group_address) = return_type {
+                                    return match self.constructs.get_mut(construct_name.as_str()).expect("Could not find construct!!")
+                                        .push_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::EnterGroup(group_address)))) {
+                                        ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed) => {
+                                            ExternalCommandReturnValues::Sector(return_type)
+                                        }
+                                        event => ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Construct {} had trouble updating its group state to {}, got this event {:?}", construct_name, group_address, event)))
+                                    };
+                                }
+
+                                ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Construct {} had trouble sector {:?}, got this returned {:?}", construct_name, sector_position, return_type)))
+                            }
+                            _ => {
+                                let return_type = sector.push_event(&SectorEventType::External(sector_event));
+                                ExternalCommandReturnValues::Sector(return_type)
+                            }
+                        }
                     }
                     None => { ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindSector(sector_position)) }
                 };
@@ -213,8 +232,6 @@ impl MyLittleUniverse {
             return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Target sector does not exist {:?}", of_move_to_sector.sector_position));
         }
 
-        let mut group_id: Option<usize> = None;
-
         //Handling source target first.
         match self.constructs.get(&of_move_to_sector.construct_name) {
             Some(construct) => {
@@ -232,25 +249,13 @@ impl MyLittleUniverse {
 
                         match self.sectors.get_mut(source_sector_position.sector_position()) {
                             Some(source_sector) => {
-                                if source_sector_position.sector_position().eq(&of_move_to_sector.sector_position) {
-                                    match source_sector.push_event(&SectorEventType::Internal(InternalSectorEventType::MoveToGroup(of_move_to_sector.construct_name.clone(), of_move_to_sector.group_address))) {
-                                        SectorEvenReturnType::Entered(new_group_id) => { group_id = Some(new_group_id); }
-                                        Denied(message) => {
-                                            return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Could not leave sector {:?}, because {}", of_move_to_sector.sector_position, message));
-                                        }
-                                        _ => {
-                                            panic!("Source sector did not return expected event. Event: {:?}, Source Sector: {:?}", of_move_to_sector, of_move_to_sector.sector_position);
-                                        }
+                                match source_sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Leave(of_move_to_sector.construct_name.clone()))) {
+                                    SectorEvenReturnType::Approved => {}
+                                    Denied(message) => {
+                                        return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Could not leave sector {:?}, because {}", of_move_to_sector.sector_position, message));
                                     }
-                                } else {
-                                    match source_sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Leave(of_move_to_sector.construct_name.clone()))) {
-                                        SectorEvenReturnType::Approved => {}
-                                        Denied(message) => {
-                                            return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Could not leave sector {:?}, because {}", of_move_to_sector.sector_position, message));
-                                        }
-                                        _ => {
-                                            panic!("Source sector did not return expected event. Event: {:?}, Source Sector: {:?}", of_move_to_sector, of_move_to_sector.sector_position);
-                                        }
+                                    _ => {
+                                        panic!("Source sector did not return expected event. Event: {:?}, Source Sector: {:?}", of_move_to_sector, of_move_to_sector.sector_position);
                                     }
                                 }
                             }
@@ -267,29 +272,27 @@ impl MyLittleUniverse {
         }
 
         //Then handle target sector
-        if group_id.is_none() {
-            group_id = match self.sectors.get_mut(&of_move_to_sector.sector_position) {
-                Some(target_sector) => {
-                    if let Entered(group_id) = target_sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Enter(of_move_to_sector.construct_name.clone(), of_move_to_sector.group_address))) {
-                        Some(group_id)
-                    } else {
-                        panic!("Constructs are in bad state; It is removed from one sector but not added to the new one. Construct_name: {}; Reason: Target did not accept construct entering.", of_move_to_sector.construct_name);
-                    }
+        let group_id = match self.sectors.get_mut(&of_move_to_sector.sector_position) {
+            Some(target_sector) => {
+                if let Entered(group_id) = target_sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Enter(of_move_to_sector.construct_name.clone(), of_move_to_sector.group_address))) {
+                    group_id
+                } else {
+                    panic!("Constructs are in bad state; It is removed from one sector but not added to the new one. Construct_name: {}; Reason: Target did not accept construct entering.", of_move_to_sector.construct_name);
                 }
-                None => {
-                    panic!("Constructs are in bad state; It is removed from one sector but not added to the new one. Construct_name: {}; Reason: Target were gone when needed.", of_move_to_sector.construct_name);
-                }
-            };
-        }
+            }
+            None => {
+                panic!("Constructs are in bad state; It is removed from one sector but not added to the new one. Construct_name: {}; Reason: Target were gone when needed.", of_move_to_sector.construct_name);
+            }
+        };
 
         //Handling construct
         self.constructs.get_mut(&of_move_to_sector.construct_name).unwrap()
             .push_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::EnterSector(
-                ConstructPositionSector::new(of_move_to_sector.sector_position.clone(), group_id.expect("Group id is not set at the end of move_to_sector!"))
+                ConstructPositionSector::new(of_move_to_sector.sector_position.clone(), group_id)
             ))));
 
 
-        MyLittleUniverseReturnValues::MovedToSector(group_id.expect("Group id is not set at the end of move_to_sector!"))
+        MyLittleUniverseReturnValues::MovedToSector(group_id)
     }
 
     pub fn request_execute_turn(&mut self) {
@@ -316,7 +319,7 @@ mod tests_int {
     use crate::construct_module::ConstructModuleType::Production;
     use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverse, MyLittleUniverseReturnValues, OfMove, OfTransferCargo};
     use crate::products::Product;
-    use crate::sector::SectorPosition;
+    use crate::sector::{ExternalSectorEventType, SectorEvenReturnType, SectorPosition};
     use crate::time::{ExternalTimeEventType, TimeEventReturnType, TimeStackState};
     use crate::universe_generator::generate_simple_universe;
 
@@ -471,8 +474,8 @@ mod tests_int {
         );
 
         assert_eq!(
-            ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::MovedToSector(0)),
-            universe.handle_event(ExternalCommands::Universe(ExternalUniverseEventType::MOVE(OfMove::new("transport".to_string(), SectorPosition::new(2, 2, 2), Some(0))))),
+            ExternalCommandReturnValues::Sector(SectorEvenReturnType::Entered(0)),
+            universe.handle_event(ExternalCommands::Sector(SectorPosition::new(2, 2, 2), ExternalSectorEventType::MoveToGroup("transport".to_string(), Some(0)))),
         );
 
         verify_all_constructs_position(&mut universe,
