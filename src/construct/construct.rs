@@ -231,7 +231,7 @@ mod tests_int {
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
     use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionSector, ExternalConstructPositionEventType, InternalConstructPositionEventType};
-    use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
+    use crate::construct::construct_position::ConstructPositionStatus::{IsDocked, InSector};
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
     use crate::products::Product;
@@ -310,30 +310,30 @@ mod tests_int {
         let mut construct = Construct::new("The base".to_string(), 500, sector_position.clone());
         let construct2 = Construct::new("The base2".to_string(), 500, sector_position.clone());
 
-        assert_eq!(Sector(sector_position.clone()), *construct.position.position());
+        assert_eq!(InSector(sector_position.clone()), *construct.position.position());
         assert_eq!(
             ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Construct cannot dock with itself.".to_string())),
             construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock(construct.name().to_string()))))
         );
-        assert_eq!(Sector(sector_position.clone()), *construct.position.position());
+        assert_eq!(InSector(sector_position.clone()), *construct.position.position());
 
         assert_eq!(
             ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed),
             construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock(construct2.name().to_string()))))
         );
-        assert_eq!(Docked(construct2.name().to_string()), *construct.position.position());
+        assert_eq!(IsDocked(construct2.name().to_string()), *construct.position.position());
 
         assert_eq!(
             ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("External Undock should never hit construct, use internal dock instead that contains all relevant information".to_string())),
             construct.handle_event(&ConstructEventType::External(ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Undock)))
         );
-        assert_eq!(Docked(construct2.name().to_string()), *construct.position.position());
+        assert_eq!(IsDocked(construct2.name().to_string()), *construct.position.position());
 
         assert_eq!(
             ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed),
             construct.handle_event(&ConstructEventType::Internal(InternalConstructEventType::ConstructPosition(InternalConstructPositionEventType::Undock(sector_position.clone()))))
         );
-        assert_eq!(Sector(sector_position.clone()), *construct.position.position());
+        assert_eq!(InSector(sector_position.clone()), *construct.position.position());
     }
 
     #[test]

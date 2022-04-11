@@ -93,9 +93,9 @@ impl MyLittleUniverse {
                         let docked_at_name = match self.constructs.get(&construct_name) {
                             Some(construct) => {
                                 match construct.position.position() {
-                                    ConstructPositionStatus::Sector(sector_name) =>
+                                    ConstructPositionStatus::InSector(sector_name) =>
                                         return ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied(format!("Cannot undock because is not docked. Is in sector {:?}", sector_name)))),
-                                    ConstructPositionStatus::Docked(the_docked_at_name) => the_docked_at_name.clone()
+                                    ConstructPositionStatus::IsDocked(the_docked_at_name) => the_docked_at_name.clone()
                                 }
                             }
                             None => { return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::CouldNotFindConstruct(construct_name)); }
@@ -184,19 +184,19 @@ impl MyLittleUniverse {
                         };
 
                         match source_construct.position.position() {
-                            ConstructPositionStatus::Sector(source_position) => {
+                            ConstructPositionStatus::InSector(source_position) => {
                                 match target_construct.position.position() {
-                                    ConstructPositionStatus::Sector(target_position) => {
+                                    ConstructPositionStatus::InSector(target_position) => {
                                         return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied(format!("Cannot transfer, because {} is docked at {:?} and {} is docked at {:?}; One need to be docked at the other.", transfer_cargo.source_construct_name, source_position, transfer_cargo.target_construct_name, target_position)));
                                     }
-                                    ConstructPositionStatus::Docked(target_docked_at_name) => {
+                                    ConstructPositionStatus::IsDocked(target_docked_at_name) => {
                                         if target_docked_at_name.ne(&transfer_cargo.source_construct_name) {
                                             return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied(format!("Cannot transfer, because {} is docked at {:?} and {} is docked at {:?}; One need to be docked at the other.", transfer_cargo.source_construct_name, source_position, transfer_cargo.target_construct_name, target_docked_at_name)));
                                         } else {}
                                     }
                                 }
                             }
-                            ConstructPositionStatus::Docked(source_docked_at_name) => {
+                            ConstructPositionStatus::IsDocked(source_docked_at_name) => {
                                 if source_docked_at_name.ne(&transfer_cargo.target_construct_name) {
                                     return ExternalCommandReturnValues::Universe(MyLittleUniverseReturnValues::Denied(format!("Cannot transfer, because {} is docked at {:?} and that is not {}.", transfer_cargo.source_construct_name, source_docked_at_name, transfer_cargo.target_construct_name)));
                                 } else {}
@@ -222,10 +222,10 @@ impl MyLittleUniverse {
 
     fn get_sector_position(&self, construct_name: String) -> &ConstructPositionSector {
         match self.constructs.get(construct_name.as_str()).expect("Looked up a construct_name that does not exist anymore").position.position() {
-            ConstructPositionStatus::Docked(docker_construct_name) => {
+            ConstructPositionStatus::IsDocked(docker_construct_name) => {
                 self.get_sector_position(docker_construct_name.clone())
             }
-            ConstructPositionStatus::Sector(sector_position) => sector_position
+            ConstructPositionStatus::InSector(sector_position) => sector_position
         }
     }
 
@@ -239,10 +239,10 @@ impl MyLittleUniverse {
             Some(construct) => {
                 let position = construct.position().position();
                 match position {
-                    ConstructPositionStatus::Docked(construct_name) => {
+                    ConstructPositionStatus::IsDocked(construct_name) => {
                         return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Is docked at {}", construct_name));
                     }
-                    ConstructPositionStatus::Sector(source_sector_position) => {
+                    ConstructPositionStatus::InSector(source_sector_position) => {
                         if source_sector_position.sector_position().eq(&of_move_to_sector.sector_position)
                             && of_move_to_sector.group_address.is_some()
                             && source_sector_position.group_address().eq(&of_move_to_sector.group_address.unwrap()) {
@@ -251,7 +251,7 @@ impl MyLittleUniverse {
 
                         match self.sectors.get_mut(source_sector_position.sector_position()) {
                             Some(source_sector) => {
-                                match source_sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Leave(of_move_to_sector.construct_name.clone()))) {
+                                match source_sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Leave(of_move_to_sector.construct_name.clone(), source_sector_position.group_address()))) {
                                     SectorEvenReturnType::Approved => {}
                                     Denied(message) => {
                                         return MyLittleUniverseReturnValues::CouldNotMoveToSector(format!("Could not leave sector {:?}, because {}", of_move_to_sector.sector_position, message));
@@ -316,7 +316,7 @@ mod tests_int {
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
     use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionSector, ConstructPositionStatus, ExternalConstructPositionEventType};
-    use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
+    use crate::construct::construct_position::ConstructPositionStatus::{IsDocked, InSector};
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
     use crate::my_little_universe::{ExternalUniverseEventType, MyLittleUniverse, MyLittleUniverseReturnValues, OfMove, OfTransferCargo};
@@ -385,7 +385,7 @@ mod tests_int {
         let mut universe = generate_simple_universe("the_universe".to_string());
 
         if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })) {
-            assert_eq!(&Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)), construct.position.position());
+            assert_eq!(&InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)), construct.position.position());
         } else {
             assert!(false);
         }
@@ -426,9 +426,9 @@ mod tests_int {
         let mut universe = generate_simple_universe("the_universe".to_string());
 
         verify_all_constructs_position(&mut universe,
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
         );
 
         assert_eq!(
@@ -437,20 +437,20 @@ mod tests_int {
         );
 
         verify_all_constructs_position(&mut universe,
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
         );
 
         assert_eq!(
-            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Construct \"transport\" is at position Sector(ConstructPositionSector { sector_position: SectorPosition { x: 1, y: 1, z: 1 }, group_address: 0 }) and \"The_base_2\" is at position Sector(ConstructPositionSector { sector_position: SectorPosition { x: 2, y: 2, z: 2 }, group_address: 0 }), but they need to be at the same position to dock.".to_string()))),
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Construct \"transport\" is at position InSector(ConstructPositionSector { sector_position: SectorPosition { x: 1, y: 1, z: 1 }, group_address: 0 }) and \"The_base_2\" is at position InSector(ConstructPositionSector { sector_position: SectorPosition { x: 2, y: 2, z: 2 }, group_address: 0 }), but they need to be at the same position to dock.".to_string()))),
             universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock("The_base_2".to_string())))),
         );
 
         verify_all_constructs_position(&mut universe,
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
         );
 
         assert_eq!(
@@ -459,20 +459,20 @@ mod tests_int {
         );
 
         verify_all_constructs_position(&mut universe,
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 1)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 1)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
         );
 
         assert_eq!(
-            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Construct \"transport\" is at position Sector(ConstructPositionSector { sector_position: SectorPosition { x: 2, y: 2, z: 2 }, group_address: 1 }) and \"The_base_2\" is at position Sector(ConstructPositionSector { sector_position: SectorPosition { x: 2, y: 2, z: 2 }, group_address: 0 }), but they need to be at the same position to dock.".to_string()))),
+            ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Construct \"transport\" is at position InSector(ConstructPositionSector { sector_position: SectorPosition { x: 2, y: 2, z: 2 }, group_address: 1 }) and \"The_base_2\" is at position InSector(ConstructPositionSector { sector_position: SectorPosition { x: 2, y: 2, z: 2 }, group_address: 0 }), but they need to be at the same position to dock.".to_string()))),
             universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::ConstructPosition(ExternalConstructPositionEventType::Dock("The_base_2".to_string())))),
         );
 
         verify_all_constructs_position(&mut universe,
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 1)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 1)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
         );
 
         assert_eq!(
@@ -481,9 +481,9 @@ mod tests_int {
         );
 
         verify_all_constructs_position(&mut universe,
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
         );
 
         assert_eq!(
@@ -493,9 +493,9 @@ mod tests_int {
 
 
         verify_all_constructs_position(&mut universe,
-                                       Docked("The_base_2".to_string()),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       IsDocked("The_base_2".to_string()),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
         );
 
         assert_eq!(
@@ -504,9 +504,9 @@ mod tests_int {
         );
 
         verify_all_constructs_position(&mut universe,
-                                       Docked("The_base_2".to_string()),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       IsDocked("The_base_2".to_string()),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
         );
 
         assert_eq!(
@@ -515,9 +515,9 @@ mod tests_int {
         );
 
         verify_all_constructs_position(&mut universe,
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
         );
 
         assert_eq!(
@@ -526,9 +526,9 @@ mod tests_int {
         );
 
         verify_all_constructs_position(&mut universe,
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
         );
         assert_eq!(
             ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::RequestProcessed)),
@@ -536,9 +536,9 @@ mod tests_int {
         );
 
         verify_all_constructs_position(&mut universe,
-                                       Docked("The_base_2".to_string()),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
+                                       IsDocked("The_base_2".to_string()),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(2, 2, 2), 0)),
         );
 
         assert_eq!(
@@ -547,9 +547,9 @@ mod tests_int {
         );
 
         verify_all_constructs_position(&mut universe,
-                                       Docked("The_base_2".to_string()),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       IsDocked("The_base_2".to_string()),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
         );
 
         assert_eq!(
@@ -558,9 +558,9 @@ mod tests_int {
         );
 
         verify_all_constructs_position(&mut universe,
-                                       Docked("The_base_2".to_string()),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Docked("The_base_1".to_string()),
+                                       IsDocked("The_base_2".to_string()),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       IsDocked("The_base_1".to_string()),
         );
 
         assert_eq!(
@@ -569,9 +569,9 @@ mod tests_int {
         );
 
         verify_all_constructs_position(&mut universe,
-                                       Docked("The_base_2".to_string()),
-                                       Sector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
-                                       Docked("The_base_1".to_string()),
+                                       IsDocked("The_base_2".to_string()),
+                                       InSector(ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0)),
+                                       IsDocked("The_base_1".to_string()),
         );
     }
 
@@ -669,29 +669,7 @@ mod tests_int {
             assert!(false);
         }
 
-        match transport_position {
-            Sector(position) => {
-                if let ExternalCommandReturnValues::Sector(SectorEvenReturnType::SectorState(state)) = universe.handle_event(ExternalCommands::Sector(position.sector_position().clone(), ExternalSectorEventType::GetSectorState)) {
-                    println!("sector state: {:?}", state);
-                    println!("position: {:?}", position);
-                    assert!(state.groups().get(position.group_address()).expect("Group id does not exist!").iter()
-                        .find(|construct_name| construct_name.as_str().eq("transport"))
-                        .is_some())
-                } else {
-                    assert!(false);
-                }
-            }
-            Docked(docked_at_name) => {
-                if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct(docked_at_name, ExternalConstructEventType::GetConstructState { include_stack: false })) {
-                    assert!(construct.position.docker_modules().iter()
-                        .find(|docker_module| docker_module.docked_construct().eq(&Some("transport".to_string())))
-                        .is_some())
-                } else {
-                    assert!(false);
-                }
-            }
-        }
-
+        verify_sector_position(universe, transport_position, "transport");
 
         if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })) {
             assert_eq!(&base_1_position, construct.position.position());
@@ -699,10 +677,37 @@ mod tests_int {
             assert!(false);
         }
 
+        verify_sector_position(universe, base_1_position, "The_base_1");
+
         if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct("The_base_2".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })) {
             assert_eq!(&base_2_position, construct.position.position());
         } else {
             assert!(false);
+        }
+
+        verify_sector_position(universe, base_2_position, "The_base_2");
+    }
+
+    fn verify_sector_position(universe: &mut MyLittleUniverse, transport_position: ConstructPositionStatus, construct_name: &str) {
+        match transport_position {
+            InSector(position) => {
+                if let ExternalCommandReturnValues::Sector(SectorEvenReturnType::SectorState(state)) = universe.handle_event(ExternalCommands::Sector(position.sector_position().clone(), ExternalSectorEventType::GetSectorState)) {
+                    assert!(state.groups().get(position.group_address()).expect("Group id does not exist!").iter()
+                        .find(|construct_name| construct_name.eq(construct_name))
+                        .is_some())
+                } else {
+                    assert!(false);
+                }
+            }
+            IsDocked(docked_at_name) => {
+                if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct(docked_at_name, ExternalConstructEventType::GetConstructState { include_stack: false })) {
+                    assert!(construct.position.docker_modules().iter()
+                        .find(|docker_module| docker_module.docked_construct().eq(&Some(construct_name.to_string())))
+                        .is_some())
+                } else {
+                    assert!(false);
+                }
+            }
         }
     }
 }

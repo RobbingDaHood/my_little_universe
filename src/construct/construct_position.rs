@@ -2,14 +2,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::construct::construct::Construct;
 use crate::construct::construct_position::ConstructPositionEventReturnType::{Denied, RequestProcessed};
-use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
+use crate::construct::construct_position::ConstructPositionStatus::{IsDocked, InSector};
 use crate::my_little_universe::MyLittleUniverse;
 use crate::sector::{InternalSectorEventType, SectorEvenReturnType, SectorEventType, SectorPosition};
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ConstructPositionStatus {
-    Docked(String),
-    Sector(ConstructPositionSector),
+    IsDocked(String),
+    InSector(ConstructPositionSector),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -67,7 +67,7 @@ pub struct ConstructPositionState {
 
 impl ConstructPositionState {
     pub fn new(source_construct_name: String, sector_position: ConstructPositionSector) -> Self {
-        ConstructPositionState { position: Sector(sector_position), source_construct_name, docker_modules: Vec::new() }
+        ConstructPositionState { position: InSector(sector_position), source_construct_name, docker_modules: Vec::new() }
     }
     pub fn position(&self) -> &ConstructPositionStatus {
         &self.position
@@ -85,27 +85,27 @@ impl ConstructPositionState {
                 if self.source_construct_name.eq(construct_name) {
                     return Denied("Construct cannot dock with itself.".to_string());
                 }
-                self.position = Docked(construct_name.clone());
+                self.position = IsDocked(construct_name.clone());
                 RequestProcessed
             }
             ConstructPositionEventType::External(ExternalConstructPositionEventType::Undock) => {
                 Denied("External Undock should never hit construct, use internal dock instead that contains all relevant information".to_string())
             }
             ConstructPositionEventType::External(ExternalConstructPositionEventType::EnterSector(sector_position)) => {
-                self.position = Sector(sector_position.clone());
+                self.position = InSector(sector_position.clone());
                 RequestProcessed
             }
             ConstructPositionEventType::External(ExternalConstructPositionEventType::EnterGroup(group_address)) => {
                 match self.position() {
-                    ConstructPositionStatus::Sector(current_position) => {
-                        self.position = Sector(ConstructPositionSector::new(current_position.sector_position.clone(), group_address.clone()));
+                    ConstructPositionStatus::InSector(current_position) => {
+                        self.position = InSector(ConstructPositionSector::new(current_position.sector_position.clone(), group_address.clone()));
                         RequestProcessed
                     }
-                    ConstructPositionStatus::Docked(docked_at) => Denied(format!("Currently docket at {} so cannot update the group for {}.", docked_at, self.source_construct_name))
+                    ConstructPositionStatus::IsDocked(docked_at) => Denied(format!("Currently docket at {} so cannot update the group for {}.", docked_at, self.source_construct_name))
                 }
             }
             ConstructPositionEventType::Internal(InternalConstructPositionEventType::Undock(sector_position)) => {
-                self.position = Sector(sector_position.clone());
+                self.position = InSector(sector_position.clone());
                 RequestProcessed
             }
             ConstructPositionEventType::Internal(InternalConstructPositionEventType::Undocked(construct_name)) => {
@@ -159,7 +159,7 @@ impl Construct {
     }
 
     pub fn handle_docked(&mut self, target_construct_name: String) -> ConstructPositionEventReturnType {
-        self.position.position = ConstructPositionStatus::Docked(target_construct_name);
+        self.position.position = ConstructPositionStatus::IsDocked(target_construct_name);
         ConstructPositionEventReturnType::RequestProcessed
     }
 }
@@ -175,8 +175,8 @@ impl MyLittleUniverse {
             None => return ConstructPositionEventReturnType::Denied(format!("No construct with the name {}", source_construct_name)),
             Some(source_construct) => {
                 match &source_construct.position.position {
-                    Docked(docked_at_name) => return ConstructPositionEventReturnType::Denied(format!("Construct {} is already docked at {} so cannot dock again. Use Undock first.", source_construct_name, docked_at_name)),
-                    Sector(position) => (source_construct.clone(), position.clone())
+                    IsDocked(docked_at_name) => return ConstructPositionEventReturnType::Denied(format!("Construct {} is already docked at {} so cannot dock again. Use Undock first.", source_construct_name, docked_at_name)),
+                    InSector(position) => (source_construct.clone(), position.clone())
                 }
             }
         };
@@ -200,22 +200,24 @@ impl MyLittleUniverse {
         }
 
         //Mutation
+        match self.constructs.get_mut(target_construct_name.as_str()).unwrap().handle_docking_request(source_construct_name.clone()) {
+            ConstructPositionEventReturnType::RequestProcessed => {
+                self.constructs.get_mut(source_construct_name.as_str()).unwrap().handle_docked(target_construct_name);
+            }
+            ConstructPositionEventReturnType::Denied(error) => return ConstructPositionEventReturnType::Denied(error)
+        };
+
         match self.sectors.get_mut(position.sector_position()) {
             None => return ConstructPositionEventReturnType::Denied(format!("No sector at position {:?}", position)),
             Some(sector) => {
-                match sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Leave(source_construct.name().to_string()))) {
+                match sector.push_event(&SectorEventType::Internal(InternalSectorEventType::Leave(source_construct.name().to_string(), position.group_address))) {
                     SectorEvenReturnType::Approved => {}
                     other_responses => return ConstructPositionEventReturnType::Denied(format!("Construct {} could not leave {:?}, got this response {:?}", source_construct.name(), position, other_responses))
                 }
             }
         }
 
-        return match self.constructs.get_mut(target_construct_name.as_str()).unwrap().handle_docking_request(source_construct_name.clone()) {
-            ConstructPositionEventReturnType::RequestProcessed => {
-                self.constructs.get_mut(source_construct_name.as_str()).unwrap().handle_docked(target_construct_name)
-            }
-            ConstructPositionEventReturnType::Denied(error) => ConstructPositionEventReturnType::Denied(error)
-        };
+        RequestProcessed
     }
 
     fn construct_is_part_of_docker_parents(&self, first_docked_construct_name: String, query_construct_name: &String) -> bool {
@@ -223,10 +225,10 @@ impl MyLittleUniverse {
             return true;
         } else {
             match self.constructs.get(first_docked_construct_name.as_str()).expect("Looked up a construct_name that does not exist anymore").position.position() {
-                ConstructPositionStatus::Docked(docker_construct_name) => {
+                ConstructPositionStatus::IsDocked(docker_construct_name) => {
                     self.construct_is_part_of_docker_parents(docker_construct_name.clone(), query_construct_name)
                 }
-                ConstructPositionStatus::Sector(_) => return false
+                ConstructPositionStatus::InSector(_) => return false
             }
         }
     }
@@ -240,9 +242,9 @@ mod tests_int {
     use crate::construct::construct::Construct;
     use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionEventType, ConstructPositionSector, ConstructPositionState, ConstructPositionStatus, ExternalConstructPositionEventType, InternalConstructPositionEventType};
     use crate::construct::construct_position::ConstructPositionEventReturnType::{Denied, RequestProcessed};
-    use crate::construct::construct_position::ConstructPositionStatus::{Docked, Sector};
+    use crate::construct::construct_position::ConstructPositionStatus::{IsDocked, InSector};
     use crate::my_little_universe::MyLittleUniverse;
-    use crate::sector::SectorPosition;
+    use crate::sector::{Sector, SectorPosition};
     use crate::time::TimeStackState;
 
     #[test]
@@ -251,35 +253,35 @@ mod tests_int {
         let mut position1 = ConstructPositionState::new("FirstLocation1".to_string(), sector_position.clone());
         let position2 = ConstructPositionState::new("FirstLocation2".to_string(), sector_position.clone());
 
-        assert_eq!(Sector(sector_position.clone()), *position1.position());
-        assert_eq!(Sector(sector_position.clone()), *position2.position());
+        assert_eq!(InSector(sector_position.clone()), *position1.position());
+        assert_eq!(InSector(sector_position.clone()), *position2.position());
         assert_eq!(
             ConstructPositionEventReturnType::Denied("Construct cannot dock with itself.".to_string()),
             position1.handle_event(&ConstructPositionEventType::External(ExternalConstructPositionEventType::Dock(position1.source_construct_name.to_string())))
         );
-        assert_eq!(Sector(sector_position.clone()), *position1.position());
-        assert_eq!(Sector(sector_position.clone()), *position2.position());
+        assert_eq!(InSector(sector_position.clone()), *position1.position());
+        assert_eq!(InSector(sector_position.clone()), *position2.position());
 
         assert_eq!(
             ConstructPositionEventReturnType::RequestProcessed,
             position1.handle_event(&ConstructPositionEventType::External(ExternalConstructPositionEventType::Dock(position2.source_construct_name.to_string())))
         );
-        assert_eq!(Docked(position2.source_construct_name.clone()), *position1.position());
-        assert_eq!(Sector(sector_position.clone()), *position2.position());
+        assert_eq!(IsDocked(position2.source_construct_name.clone()), *position1.position());
+        assert_eq!(InSector(sector_position.clone()), *position2.position());
 
         assert_eq!(
             ConstructPositionEventReturnType::RequestProcessed,
             position1.handle_event(&ConstructPositionEventType::Internal(InternalConstructPositionEventType::Undock(sector_position.clone())))
         );
-        assert_eq!(Sector(sector_position.clone()), *position1.position());
-        assert_eq!(Sector(sector_position.clone()), *position2.position());
+        assert_eq!(InSector(sector_position.clone()), *position1.position());
+        assert_eq!(InSector(sector_position.clone()), *position2.position());
 
         assert_eq!(
             ConstructPositionEventReturnType::Denied("External Undock should never hit construct, use internal dock instead that contains all relevant information".to_string()),
             position1.handle_event(&ConstructPositionEventType::External(ExternalConstructPositionEventType::Undock))
         );
-        assert_eq!(Sector(sector_position.clone()), *position1.position());
-        assert_eq!(Sector(sector_position.clone()), *position2.position());
+        assert_eq!(InSector(sector_position.clone()), *position1.position());
+        assert_eq!(InSector(sector_position.clone()), *position2.position());
     }
 
     #[test]
@@ -293,10 +295,14 @@ mod tests_int {
         let mut constructs: HashMap<String, Construct> = HashMap::new();
         constructs.insert(construct1.name().to_string(), construct1);
         constructs.insert(construct2.name().to_string(), construct2);
-        let mut universe = MyLittleUniverse::new("universe_name".to_string(), TimeStackState::new(), constructs, HashMap::new());
 
-        assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base1_name).unwrap().position().position());
-        assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
+        let mut sectors = HashMap::new();
+        sectors.insert(sector_position.sector_position.clone(), Sector::new(Vec::new(), sector_position.sector_position.clone()));
+
+        let mut universe = MyLittleUniverse::new("universe_name".to_string(), TimeStackState::new(), constructs, sectors);
+
+        assert_eq!(InSector(sector_position.clone()), *universe.constructs.get(the_base1_name).unwrap().position().position());
+        assert_eq!(InSector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
         assert_eq!(None, universe.constructs.get(the_base2_name).unwrap().position().docker_modules.get(0).unwrap().docked_construct);
 
         assert_eq!(
@@ -304,8 +310,8 @@ mod tests_int {
             universe.handle_docking_request(the_base1_name.to_string(), the_base1_name.to_string())
         );
 
-        assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base1_name).unwrap().position().position());
-        assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
+        assert_eq!(InSector(sector_position.clone()), *universe.constructs.get(the_base1_name).unwrap().position().position());
+        assert_eq!(InSector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
         assert_eq!(None, universe.constructs.get(the_base2_name).unwrap().position().docker_modules.get(0).unwrap().docked_construct);
 
         assert_eq!(
@@ -313,8 +319,8 @@ mod tests_int {
             universe.handle_docking_request(the_base1_name.to_string(), the_base2_name.to_string())
         );
 
-        assert_eq!(ConstructPositionStatus::Docked(the_base2_name.to_string()), *universe.constructs.get(the_base1_name).unwrap().position().position());
-        assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
+        assert_eq!(ConstructPositionStatus::IsDocked(the_base2_name.to_string()), *universe.constructs.get(the_base1_name).unwrap().position().position());
+        assert_eq!(InSector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
         assert_eq!(Some(the_base1_name.to_string()), universe.constructs.get(the_base2_name).unwrap().position().docker_modules.get(0).unwrap().docked_construct);
 
         assert_eq!(
@@ -322,8 +328,8 @@ mod tests_int {
             universe.handle_docking_request(the_base2_name.to_string(), the_base1_name.to_string())
         );
 
-        assert_eq!(ConstructPositionStatus::Docked(the_base2_name.to_string()), *universe.constructs.get(the_base1_name).unwrap().position().position());
-        assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
+        assert_eq!(ConstructPositionStatus::IsDocked(the_base2_name.to_string()), *universe.constructs.get(the_base1_name).unwrap().position().position());
+        assert_eq!(InSector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
         assert_eq!(Some(the_base1_name.to_string()), universe.constructs.get(the_base2_name).unwrap().position().docker_modules.get(0).unwrap().docked_construct);
 
         assert_eq!(
@@ -336,8 +342,8 @@ mod tests_int {
             universe.constructs.get_mut(the_base1_name).unwrap().position.handle_event(&ConstructPositionEventType::Internal(InternalConstructPositionEventType::Undock(sector_position.clone())))
         );
 
-        assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base1_name).unwrap().position().position());
-        assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
+        assert_eq!(InSector(sector_position.clone()), *universe.constructs.get(the_base1_name).unwrap().position().position());
+        assert_eq!(InSector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
         assert_eq!(Some(the_base1_name.to_string()), universe.constructs.get(the_base2_name).unwrap().position().docker_modules.get(0).unwrap().docked_construct);
 
         assert_eq!(
@@ -345,8 +351,8 @@ mod tests_int {
             universe.constructs.get_mut(the_base2_name).unwrap().position.handle_event(&ConstructPositionEventType::Internal(InternalConstructPositionEventType::Undocked(the_base1_name.to_string())))
         );
 
-        assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base1_name).unwrap().position().position());
-        assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
+        assert_eq!(InSector(sector_position.clone()), *universe.constructs.get(the_base1_name).unwrap().position().position());
+        assert_eq!(InSector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
         assert_eq!(None, universe.constructs.get(the_base2_name).unwrap().position().docker_modules.get(0).unwrap().docked_construct);
 
         assert_eq!(
@@ -354,8 +360,8 @@ mod tests_int {
             universe.handle_docking_request(the_base2_name.to_string(), the_base1_name.to_string())
         );
 
-        assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base1_name).unwrap().position().position());
-        assert_eq!(Sector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
+        assert_eq!(InSector(sector_position.clone()), *universe.constructs.get(the_base1_name).unwrap().position().position());
+        assert_eq!(InSector(sector_position.clone()), *universe.constructs.get(the_base2_name).unwrap().position().position());
         assert_eq!(None, universe.constructs.get(the_base2_name).unwrap().position().docker_modules.get(0).unwrap().docked_construct);
     }
 }

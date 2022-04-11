@@ -10,14 +10,14 @@ pub enum SectorEventType {
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum InternalSectorEventType {
-    Leave(String),
+    Leave(String, usize),
     Enter(String, Option<usize>),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub enum ExternalSectorEventType {
     GetSectorState,
-    MoveToGroup(String, Option<usize>)
+    MoveToGroup(String, Option<usize>),
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -70,11 +70,9 @@ impl Sector {
                     self.enter_sector(construct_name.clone(), group_id.clone()),
                 )
             }
-            SectorEventType::Internal(InternalSectorEventType::Leave(construct_name)) => {
-                match self.leave_sector(construct_name) {
-                    Ok(_) => Approved,
-                    Err(message) => Denied(message)
-                }
+            SectorEventType::Internal(InternalSectorEventType::Leave(construct_name, construct_position)) => {
+                self.remove_construct_from_group(construct_name, *construct_position);
+                Approved
             }
             SectorEventType::External(ExternalSectorEventType::MoveToGroup(construct_name, group_id)) => {
                 match self.move_to_group(construct_name.clone(), group_id.clone()) {
@@ -137,16 +135,6 @@ impl Sector {
         }
     }
 
-    fn leave_sector(&mut self, construct_name: &String) -> Result<(), String> {
-        if let Some(construct_source) = self.groups.iter()
-            .position(|group| group.contains(&construct_name)) {
-            self.remove_construct_from_group(&construct_name, construct_source);
-            Ok(())
-        } else {
-            Err(format!("Construct with name {} does not seem to be a member of any group in sector {:?} so it cannot move.", construct_name, self.position))
-        }
-    }
-
     pub fn enter_sector(&mut self, construct_name: String, group_id: Option<usize>) -> usize {
         self.add_construct_to_group(&construct_name, group_id)
     }
@@ -186,7 +174,7 @@ mod tests_int {
         assert_eq!(&"construct_1".to_string(), sector.groups.get(1).unwrap().get(0).unwrap());
         assert_eq!(2, sector.groups.len());
 
-        assert_eq!(SectorEvenReturnType::Approved, sector.handle_event(&SectorEventType::Internal(InternalSectorEventType::Leave("construct_1".to_string()))));
+        assert_eq!(SectorEvenReturnType::Approved, sector.handle_event(&SectorEventType::Internal(InternalSectorEventType::Leave("construct_1".to_string(), 1))));
         assert!(sector.groups.get(0).unwrap().is_empty());
         assert!(sector.groups.get(1).unwrap().is_empty());
         assert_eq!(2, sector.groups.len());
@@ -228,16 +216,17 @@ mod tests_int {
         assert!(sector.groups.get(1).unwrap().is_empty());
         assert_eq!(&"construct_2".to_string(), sector.groups.get(2).unwrap().get(0).unwrap());
 
-        assert_eq!(SectorEvenReturnType::Approved, sector.handle_event(&SectorEventType::Internal(InternalSectorEventType::Leave("construct_1".to_string()))));
+        assert_eq!(SectorEvenReturnType::Approved, sector.handle_event(&SectorEventType::Internal(InternalSectorEventType::Leave("construct_1".to_string(), 0))));
         assert_eq!(3, sector.groups.len());
         assert!(sector.groups.get(0).unwrap().is_empty());
         assert!(sector.groups.get(1).unwrap().is_empty());
         assert_eq!(&"construct_2".to_string(), sector.groups.get(2).unwrap().get(0).unwrap());
 
-        assert_eq!(
-            Err("Construct with name construct_1 does not seem to be a member of any group in sector SectorPosition { x: 4, y: 3, z: 2 } so it cannot move.".to_string()),
-            sector.leave_sector(&"construct_1".to_string())
-        );
+        assert_eq!(SectorEvenReturnType::Approved, sector.handle_event(&SectorEventType::Internal(InternalSectorEventType::Leave("construct_1".to_string(), 0))));
+        assert_eq!(3, sector.groups.len());
+        assert!(sector.groups.get(0).unwrap().is_empty());
+        assert!(sector.groups.get(1).unwrap().is_empty());
+        assert_eq!(&"construct_2".to_string(), sector.groups.get(2).unwrap().get(0).unwrap());
 
         assert_eq!(SectorEvenReturnType::Entered(0), sector.handle_event(&SectorEventType::External(ExternalSectorEventType::MoveToGroup("construct_2".to_string(), None))));
         assert_eq!(&"construct_2".to_string(), sector.groups.get(0).unwrap().get(0).unwrap());
