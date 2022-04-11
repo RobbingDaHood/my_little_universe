@@ -61,19 +61,15 @@ pub enum ConstructPositionEventReturnType {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 pub struct ConstructPositionState {
     position: ConstructPositionStatus,
-    source_construct_name: String,
     docker_modules: Vec<DockerModule>,
 }
 
 impl ConstructPositionState {
-    pub fn new(source_construct_name: String, sector_position: ConstructPositionSector) -> Self {
-        ConstructPositionState { position: InSector(sector_position), source_construct_name, docker_modules: Vec::new() }
+    pub fn new(sector_position: ConstructPositionSector) -> Self {
+        ConstructPositionState { position: InSector(sector_position), docker_modules: Vec::new() }
     }
     pub fn position(&self) -> &ConstructPositionStatus {
         &self.position
-    }
-    pub fn source_construct_name(&self) -> &str {
-        &self.source_construct_name
     }
     pub fn docker_modules(&self) -> &Vec<DockerModule> {
         &self.docker_modules
@@ -82,9 +78,6 @@ impl ConstructPositionState {
     pub fn handle_event(&mut self, event: &ConstructPositionEventType) -> ConstructPositionEventReturnType {
         match event {
             ConstructPositionEventType::External(ExternalConstructPositionEventType::Dock(construct_name)) => {
-                if self.source_construct_name.eq(construct_name) {
-                    return Denied("Construct cannot dock with itself.".to_string());
-                }
                 self.position = IsDocked(construct_name.clone());
                 RequestProcessed
             }
@@ -101,7 +94,7 @@ impl ConstructPositionState {
                         self.position = InSector(ConstructPositionSector::new(current_position.sector_position.clone(), group_address.clone()));
                         RequestProcessed
                     }
-                    ConstructPositionStatus::IsDocked(docked_at) => Denied(format!("Currently docket at {} so cannot update the group for {}.", docked_at, self.source_construct_name))
+                    ConstructPositionStatus::IsDocked(docked_at) => Denied(format!("Currently docket at {} so cannot dock another place.", docked_at))
                 }
             }
             ConstructPositionEventType::Internal(InternalConstructPositionEventType::Undock(sector_position)) => {
@@ -250,23 +243,17 @@ mod tests_int {
     #[test]
     fn docking_module() {
         let sector_position = ConstructPositionSector::new(SectorPosition::new(1, 1, 1), 0);
-        let mut position1 = ConstructPositionState::new("FirstLocation1".to_string(), sector_position.clone());
-        let position2 = ConstructPositionState::new("FirstLocation2".to_string(), sector_position.clone());
+        let mut position1 = ConstructPositionState::new(sector_position.clone());
+        let position2 = ConstructPositionState::new(sector_position.clone());
 
-        assert_eq!(InSector(sector_position.clone()), *position1.position());
-        assert_eq!(InSector(sector_position.clone()), *position2.position());
-        assert_eq!(
-            ConstructPositionEventReturnType::Denied("Construct cannot dock with itself.".to_string()),
-            position1.handle_event(&ConstructPositionEventType::External(ExternalConstructPositionEventType::Dock(position1.source_construct_name.to_string())))
-        );
         assert_eq!(InSector(sector_position.clone()), *position1.position());
         assert_eq!(InSector(sector_position.clone()), *position2.position());
 
         assert_eq!(
             ConstructPositionEventReturnType::RequestProcessed,
-            position1.handle_event(&ConstructPositionEventType::External(ExternalConstructPositionEventType::Dock(position2.source_construct_name.to_string())))
+            position1.handle_event(&ConstructPositionEventType::External(ExternalConstructPositionEventType::Dock("FirstLocation2".to_string())))
         );
-        assert_eq!(IsDocked(position2.source_construct_name.clone()), *position1.position());
+        assert_eq!(IsDocked("FirstLocation2".to_string()), *position1.position());
         assert_eq!(InSector(sector_position.clone()), *position2.position());
 
         assert_eq!(

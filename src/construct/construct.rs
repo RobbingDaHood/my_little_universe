@@ -51,7 +51,7 @@ pub struct Construct {
 
 impl Construct {
     pub fn new(name: String, capacity: u32, sector_position: ConstructPositionSector) -> Self {
-        Construct { name: name.clone(), capacity, current_storage: HashMap::new(), modules: Vec::new(), event_stack: Vec::new(), position: ConstructPositionState::new(name.clone(), sector_position) }
+        Construct { name: name.clone(), capacity, current_storage: HashMap::new(), modules: Vec::new(), event_stack: Vec::new(), position: ConstructPositionState::new(sector_position) }
     }
 
     pub fn name(&self) -> &str {
@@ -96,6 +96,14 @@ impl Construct {
                 RequestUnloadProcessed(self.unload_request(request))
             }
             ConstructEventType::External(ExternalConstructEventType::ConstructPosition(construct_position_event)) => {
+                match construct_position_event {
+                    ExternalConstructPositionEventType::Dock(target_construct) => {
+                        if self.name.eq(target_construct) {
+                            return ConstructEvenReturnType::ConstructPosition(ConstructPositionEventReturnType::Denied("Construct cannot dock with itself.".to_string()));
+                        }
+                    }
+                    _ => {}
+                }
                 ConstructEvenReturnType::ConstructPosition(self.position.handle_event(&ConstructPositionEventType::External(construct_position_event.clone())))
             }
             ConstructEventType::Internal(InternalConstructEventType::ExecuteTurn(current_turn)) => {
@@ -231,7 +239,7 @@ mod tests_int {
     use crate::construct::amount::Amount;
     use crate::construct::construct::{Construct, ConstructEvenReturnType, ConstructEventType, ExternalConstructEventType, InternalConstructEventType};
     use crate::construct::construct_position::{ConstructPositionEventReturnType, ConstructPositionSector, ExternalConstructPositionEventType, InternalConstructPositionEventType};
-    use crate::construct::construct_position::ConstructPositionStatus::{IsDocked, InSector};
+    use crate::construct::construct_position::ConstructPositionStatus::{InSector, IsDocked};
     use crate::construct::production_module::ProductionModule;
     use crate::construct_module::ConstructModuleType::Production;
     use crate::products::Product;
