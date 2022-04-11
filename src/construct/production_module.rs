@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use crate::construct::amount::Amount;
 use crate::construct::construct::Construct;
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Eq, Hash)]
 pub struct ProductionModule {
     name: String,
     input: Vec<Amount>,

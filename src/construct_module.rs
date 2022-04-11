@@ -6,7 +6,7 @@ pub trait CanHandleNextTurn {
     fn next_turn(&mut self, current_turn: &u64);
 }
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Eq, Hash)]
 pub enum ConstructModuleType {
     Production(ProductionModule)
 }

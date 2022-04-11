@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::products::Product;
 
-#[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Debug, Serialize, Deserialize, Eq, Hash)]
 pub struct Amount {
     product: Product,
     amount: u32,
