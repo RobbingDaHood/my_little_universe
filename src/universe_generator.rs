@@ -77,10 +77,10 @@ pub fn generate_simple_universe(universe_name: String) -> MyLittleUniverse {
     constructs.insert(transport_construct.name().to_string(), transport_construct);
 
     let mut sector_1 = Sector::new(Vec::new(), sector_position_1.sector_position().clone());
-    sector_1.enter_sector("The_base_1".to_string(), None);
-    sector_1.enter_sector("transport".to_string(), None);
+    sector_1.enter_sector("The_base_1".to_string(), Some(0));
+    sector_1.enter_sector("transport".to_string(), Some(0));
     let mut sector_2 = Sector::new(Vec::new(), sector_position_2.sector_position().clone());
-    sector_2.enter_sector("The_base_2".to_string(), None);
+    sector_2.enter_sector("The_base_2".to_string(), Some(0));
 
     let mut sectors = HashMap::new();
     sectors.insert(sector_position_1.sector_position().clone(), sector_1);

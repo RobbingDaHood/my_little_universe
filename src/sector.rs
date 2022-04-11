@@ -51,6 +51,9 @@ impl Sector {
     pub fn new(groups: Vec<Vec<String>>, position: SectorPosition) -> Self {
         Sector { groups, position }
     }
+    pub fn groups(&self) -> &Vec<Vec<String>> {
+        &self.groups
+    }
 
     pub fn push_event(&mut self, event: &SectorEventType) -> SectorEvenReturnType {
         // self.event_stack.push(event.clone());

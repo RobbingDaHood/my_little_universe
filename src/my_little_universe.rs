@@ -14,7 +14,7 @@ use crate::time::{InternalTimeEventType, TimeEventType, TimeStackState};
 pub struct MyLittleUniverse {
     time: TimeStackState,
     pub(crate) constructs: HashMap<String, Construct>,
-    sectors: HashMap<SectorPosition, Sector>,
+    pub(crate) sectors: HashMap<SectorPosition, Sector>,
     universe_name: String,
 }
 
@@ -108,6 +108,8 @@ impl MyLittleUniverse {
                         let sector_position = self.get_sector_position(construct_name.clone()).clone();
                         let construct = self.constructs.get_mut(&construct_name).unwrap();
                         let return_type = construct.push_event(&ConstructEventType::Internal(InternalConstructEventType::ConstructPosition(InternalConstructPositionEventType::Undock(sector_position.clone()))));
+
+                        self.sectors.get_mut(sector_position.sector_position()).unwrap().push_event(&SectorEventType::Internal(InternalSectorEventType::Enter(construct_name, Some(sector_position.group_address()))));
 
                         ExternalCommandReturnValues::Construct(return_type)
                     }
@@ -666,6 +668,30 @@ mod tests_int {
         } else {
             assert!(false);
         }
+
+        match transport_position {
+            Sector(position) => {
+                if let ExternalCommandReturnValues::Sector(SectorEvenReturnType::SectorState(state)) = universe.handle_event(ExternalCommands::Sector(position.sector_position().clone(), ExternalSectorEventType::GetSectorState)) {
+                    println!("sector state: {:?}", state);
+                    println!("position: {:?}", position);
+                    assert!(state.groups().get(position.group_address()).expect("Group id does not exist!").iter()
+                        .find(|construct_name| construct_name.as_str().eq("transport"))
+                        .is_some())
+                } else {
+                    assert!(false);
+                }
+            }
+            Docked(docked_at_name) => {
+                if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct(docked_at_name, ExternalConstructEventType::GetConstructState { include_stack: false })) {
+                    assert!(construct.position.docker_modules().iter()
+                        .find(|docker_module| docker_module.docked_construct().eq(&Some("transport".to_string())))
+                        .is_some())
+                } else {
+                    assert!(false);
+                }
+            }
+        }
+
 
         if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })) {
             assert_eq!(&base_1_position, construct.position.position());
