@@ -663,29 +663,32 @@ mod tests_int {
     }
 
     fn verify_all_constructs_position(universe: &mut MyLittleUniverse, transport_position: ConstructPositionStatus, base_1_position: ConstructPositionStatus, base_2_position: ConstructPositionStatus) {
-        if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct("transport".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })) {
-            assert_eq!(&transport_position, construct.position.position());
-        } else {
-            assert!(false);
-        }
-
+        verify_construct(universe, &transport_position, "transport");
         verify_sector_position(universe, transport_position, "transport");
 
-        if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct("The_base_1".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })) {
-            assert_eq!(&base_1_position, construct.position.position());
-        } else {
-            assert!(false);
-        }
-
+        verify_construct(universe, &base_1_position, "The_base_1");
         verify_sector_position(universe, base_1_position, "The_base_1");
 
-        if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct("The_base_2".to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })) {
-            assert_eq!(&base_2_position, construct.position.position());
+        verify_construct(universe, &base_2_position, "The_base_2");
+        verify_sector_position(universe, base_2_position, "The_base_2");
+    }
+
+    fn verify_construct(universe: &mut MyLittleUniverse, transport_position: &ConstructPositionStatus, construct_name: &str) {
+        if let ExternalCommandReturnValues::Construct(ConstructEvenReturnType::ConstructState(construct)) = universe.handle_event(ExternalCommands::Construct(construct_name.to_string(), ExternalConstructEventType::GetConstructState { include_stack: false })) {
+            assert_eq!(transport_position, construct.position.position());
+
+            if let IsDocked(docked_at) = construct.position.position() {
+                assert!(universe.constructs.get(docked_at).expect("Could not find docked_at construct.")
+                    .position.docker_modules().iter()
+                    .find(|c| match c.docked_construct() {
+                        None => false,
+                        Some(docking_here) => docking_here.eq(construct_name)
+                    })
+                    .is_some());
+            }
         } else {
             assert!(false);
         }
-
-        verify_sector_position(universe, base_2_position, "The_base_2");
     }
 
     fn verify_sector_position(universe: &mut MyLittleUniverse, transport_position: ConstructPositionStatus, construct_name: &str) {
